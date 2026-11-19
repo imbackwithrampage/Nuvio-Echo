@@ -232,6 +232,8 @@ data class PlayerSettings(
     val skipSilence: Boolean = false,
     val audioAmplificationDb: Int = 0,
     val centerMixLevelDb: Int = 0,
+    val nightModeEnabled: Boolean = false,
+    val lfeMixLevel: Float = 0.0f,
     val persistAudioAmplification: Boolean = false,
     val rememberAudioDelayPerDevice: Boolean = true,
     val preferredAudioLanguage: String = AudioLanguageOption.DEVICE,
@@ -241,13 +243,17 @@ data class PlayerSettings(
     val playbackIssueReportsEnabled: Boolean = false,
     val pauseOverlayEnabled: Boolean = true,
     val osdClockEnabled: Boolean = true,
+    val showStreamCodecBadges: Boolean = true,
+    val customBadgePackPath: String? = null,
     val skipIntroEnabled: Boolean = true,
+    val skipIntroMode: SkipIntroMode = SkipIntroMode.SHOW_BUTTON,
     val parentalGuideEnabled: Boolean = true,
     val autoSkipSegmentTypes: Set<AutoSkipSegmentType> = emptySet(),
     /** What the playing file is asked about its own skip times, under Skip intro. */
     val skipTimeFileChecks: Set<SkipTimeFileCheck> = SkipTimeFileCheck.DEFAULT,
     // Dolby Vision settings (libdovi conversion). dv7HandlingMode == HDR10_BASE_LAYER
     // replaces the legacy mapDV7ToHevc boolean (strip DV7, play HEVC base layer).
+    val convertDvProfile7To81: Boolean = false,
     val dv5ToDv81Enabled: Boolean = false,
     val dv7ToDv81PreserveMappingEnabled: Boolean = false,
     val dv7HandlingMode: Dv7HandlingMode = Dv7HandlingMode.AUTO,
@@ -291,6 +297,8 @@ data class PlayerSettings(
 
     // Networking
     val bufferEngineEnabled: Boolean = false,
+    val bufferPreset: PlaybackBufferPreset = PlaybackBufferPreset.BALANCED,
+    val releaseHardwareDecoderWhenBackgrounded: Boolean = true,
     val parallelNetworkEnabled: Boolean = false,
     /** When true the device memory budget caps the buffer; when false Target Buffer Size drives it. */
     val bufferBudgetManaged: Boolean = DEFAULT_BUFFER_BUDGET_MANAGED,
@@ -483,6 +491,29 @@ enum class Dv7HandlingMode {
         }
     }
 }
+enum class PlaybackBufferPreset(val storedValue: String) {
+    LOW_RAM_32BIT("low_ram_32bit"),
+    BALANCED("balanced"),
+    HIGH_BITRATE("high_bitrate"),
+    CUSTOM("custom");
+
+    companion object {
+        fun fromStoredValue(value: String?): PlaybackBufferPreset =
+            entries.firstOrNull { it.storedValue.equals(value, ignoreCase = true) || it.name.equals(value, ignoreCase = true) } ?: BALANCED
+    }
+}
+
+enum class SkipIntroMode(val storedValue: String) {
+    AUTO_SKIP("auto_skip"),
+    SHOW_BUTTON("show_button"),
+    OFF("off");
+
+    companion object {
+        fun fromStoredValue(value: String?): SkipIntroMode =
+            entries.firstOrNull { it.storedValue.equals(value, ignoreCase = true) || it.name.equals(value, ignoreCase = true) } ?: SHOW_BUTTON
+    }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class PlayerSettingsDataStore @Inject constructor(
@@ -496,6 +527,8 @@ class PlayerSettingsDataStore @Inject constructor(
         private const val AUDIO_AMPLIFICATION_DB_MAX = 10
         private const val CENTER_MIX_LEVEL_DB_MIN = -10
         private const val CENTER_MIX_LEVEL_DB_MAX = 30
+        private const val LFE_MIX_LEVEL_MIN = 0.0f
+        private const val LFE_MIX_LEVEL_MAX = 2.0f
     }
 
     private fun store(profileId: Int = profileManager.activeProfileId.value) =
@@ -521,6 +554,8 @@ class PlayerSettingsDataStore @Inject constructor(
     private val skipSilenceKey = booleanPreferencesKey("skip_silence")
     private val audioAmplificationDbKey = intPreferencesKey("audio_amplification_db")
     private val centerMixLevelDbKey = intPreferencesKey("center_mix_level_db")
+    private val nightModeEnabledKey = booleanPreferencesKey("audio_night_mode_enabled")
+    private val lfeMixLevelKey = floatPreferencesKey("audio_lfe_mix_level")
     private val persistAudioAmplificationKey = booleanPreferencesKey("persist_audio_amplification")
     private val rememberAudioDelayPerDeviceKey = booleanPreferencesKey("remember_audio_delay_per_device")
     private val preferredAudioLanguageKey = stringPreferencesKey("preferred_audio_language")
@@ -530,7 +565,10 @@ class PlayerSettingsDataStore @Inject constructor(
     private val playbackIssueReportsEnabledKey = booleanPreferencesKey("playback_issue_reports_enabled")
     private val pauseOverlayEnabledKey = booleanPreferencesKey("pause_overlay_enabled")
     private val osdClockEnabledKey = booleanPreferencesKey("osd_clock_enabled")
+    private val showStreamCodecBadgesKey = booleanPreferencesKey("show_stream_codec_badges")
+    private val customBadgePackPathKey = stringPreferencesKey("custom_badge_pack_path")
     private val skipIntroEnabledKey = booleanPreferencesKey("skip_intro_enabled")
+    private val skipIntroModeKey = stringPreferencesKey("skip_intro_mode")
     private val parentalGuideEnabledKey = booleanPreferencesKey("parental_guide_enabled")
     private val autoSkipSegmentTypesKey = stringSetPreferencesKey("auto_skip_segment_types")
     private val skipTimeFileChecksKey = stringSetPreferencesKey("skip_time_file_checks")
@@ -541,6 +579,7 @@ class PlayerSettingsDataStore @Inject constructor(
     // the Kotlin var names here and the PlayerSettings field names were de-experimentalized.
     private val dv5ToDv81EnabledKey = booleanPreferencesKey("experimental_dv5_to_dv81_enabled")
     private val dv7ToDv81PreserveMappingEnabledKey = booleanPreferencesKey("experimental_dv7_to_dv81_preserve_mapping_enabled")
+    private val convertDvProfile7To81Key = booleanPreferencesKey("convert_dv_profile_7_to_81")
     private val dv7HandlingModeKey = stringPreferencesKey("dv7_handling_mode")
     // Legacy "DV7 - HEVC" boolean, read only to migrate existing users to HDR10_BASE_LAYER.
     private val legacyMapDv7ToHevcKey = booleanPreferencesKey("map_dv7_to_hevc")
@@ -585,6 +624,8 @@ class PlayerSettingsDataStore @Inject constructor(
     private val vodCacheSizeMbKey = intPreferencesKey("vod_cache_size_mb")
     private val useParallelConnectionsKey = booleanPreferencesKey("use_parallel_connections")
     private val bufferEngineEnabledKey = booleanPreferencesKey("buffer_engine_enabled")
+    private val bufferPresetKey = stringPreferencesKey("buffer_preset")
+    private val releaseHardwareDecoderWhenBackgroundedKey = booleanPreferencesKey("release_hardware_decoder_when_backgrounded")
     private val parallelNetworkEnabledKey = booleanPreferencesKey("parallel_network_enabled")
     private val allowLargeTargetBufferKey = booleanPreferencesKey("allow_large_target_buffer")
     private val bufferBudgetManagedKey = booleanPreferencesKey("buffer_budget_managed")
@@ -904,6 +945,11 @@ class PlayerSettingsDataStore @Inject constructor(
                     CENTER_MIX_LEVEL_DB_MIN,
                     CENTER_MIX_LEVEL_DB_MAX
                 ),
+                nightModeEnabled = prefs[nightModeEnabledKey] ?: false,
+                lfeMixLevel = (prefs[lfeMixLevelKey] ?: 0.0f).coerceIn(
+                    LFE_MIX_LEVEL_MIN,
+                    LFE_MIX_LEVEL_MAX
+                ),
                 persistAudioAmplification = prefs[persistAudioAmplificationKey] ?: false,
                 rememberAudioDelayPerDevice = prefs[rememberAudioDelayPerDeviceKey] ?: true,
                 preferredAudioLanguage = normalizeSelectableLanguageCode(
@@ -916,7 +962,11 @@ class PlayerSettingsDataStore @Inject constructor(
                 playbackIssueReportsEnabled = prefs[playbackIssueReportsEnabledKey] ?: false,
                 pauseOverlayEnabled = prefs[pauseOverlayEnabledKey] ?: true,
                 osdClockEnabled = prefs[osdClockEnabledKey] ?: true,
+                showStreamCodecBadges = prefs[showStreamCodecBadgesKey] ?: true,
+                customBadgePackPath = prefs[customBadgePackPathKey]?.takeIf { it.isNotBlank() },
                 skipIntroEnabled = prefs[skipIntroEnabledKey] ?: true,
+                skipIntroMode = prefs[skipIntroModeKey]?.let { SkipIntroMode.fromStoredValue(it) }
+                    ?: if (prefs[skipIntroEnabledKey] == false) SkipIntroMode.OFF else SkipIntroMode.SHOW_BUTTON,
                 parentalGuideEnabled = prefs[parentalGuideEnabledKey] ?: true,
                 autoSkipSegmentTypes = prefs[autoSkipSegmentTypesKey]
                     ?.mapNotNull(AutoSkipSegmentType::fromStoredValue)
@@ -926,6 +976,8 @@ class PlayerSettingsDataStore @Inject constructor(
                     ?.mapNotNull(SkipTimeFileCheck::fromStoredValue)
                     ?.toSet()
                     ?: SkipTimeFileCheck.DEFAULT,
+                convertDvProfile7To81 = prefs[convertDvProfile7To81Key]
+                    ?: (prefs[dv7HandlingModeKey] == Dv7HandlingMode.DV81_LIBDOVI.name),
                 dv5ToDv81Enabled = prefs[dv5ToDv81EnabledKey] ?: false,
                 dv7ToDv81PreserveMappingEnabled = prefs[dv7ToDv81PreserveMappingEnabledKey] ?: false,
                 dv7HandlingMode = when {
@@ -1005,6 +1057,8 @@ class PlayerSettingsDataStore @Inject constructor(
                 vodCacheSizeMb = (prefs[vodCacheSizeMbKey] ?: PlayerSettings.DEFAULT_VOD_CACHE_SIZE_MB).coerceIn(PlayerSettings.MIN_VOD_CACHE_SIZE_MB, PlayerSettings.MAX_VOD_CACHE_SIZE_MB),
                 useParallelConnections = prefs[useParallelConnectionsKey] ?: PlayerSettings.DEFAULT_USE_PARALLEL_CONNECTIONS,
                 bufferEngineEnabled = prefs[bufferEngineEnabledKey] ?: false,
+                bufferPreset = PlaybackBufferPreset.fromStoredValue(prefs[bufferPresetKey]),
+                releaseHardwareDecoderWhenBackgrounded = prefs[releaseHardwareDecoderWhenBackgroundedKey] ?: true,
                 parallelNetworkEnabled = prefs[parallelNetworkEnabledKey] ?: false,
                 allowLargeTargetBuffer = prefs[allowLargeTargetBufferKey] ?: PlayerSettings.DEFAULT_ALLOW_LARGE_TARGET_BUFFER,
                 bufferBudgetManaged = prefs[bufferBudgetManagedKey] ?: PlayerSettings.DEFAULT_BUFFER_BUDGET_MANAGED,
@@ -1175,6 +1229,21 @@ class PlayerSettingsDataStore @Inject constructor(
         }
     }
 
+    suspend fun setNightModeEnabled(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[nightModeEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setLfeMixLevel(level: Float) {
+        store().edit { prefs ->
+            prefs[lfeMixLevelKey] = level.coerceIn(
+                LFE_MIX_LEVEL_MIN,
+                LFE_MIX_LEVEL_MAX
+            )
+        }
+    }
+
     suspend fun setPersistAudioAmplification(
         enabled: Boolean,
         dbToPersist: Int? = null,
@@ -1227,9 +1296,33 @@ class PlayerSettingsDataStore @Inject constructor(
         }
     }
 
+    suspend fun setShowStreamCodecBadges(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[showStreamCodecBadgesKey] = enabled
+        }
+    }
+
+    suspend fun setCustomBadgePackPath(path: String?) {
+        store().edit { prefs ->
+            if (path.isNullOrBlank()) {
+                prefs.remove(customBadgePackPathKey)
+            } else {
+                prefs[customBadgePackPathKey] = path
+            }
+        }
+    }
+
     suspend fun setSkipIntroEnabled(enabled: Boolean) {
         store().edit { prefs ->
             prefs[skipIntroEnabledKey] = enabled
+            prefs[skipIntroModeKey] = if (enabled) SkipIntroMode.SHOW_BUTTON.storedValue else SkipIntroMode.OFF.storedValue
+        }
+    }
+
+    suspend fun setSkipIntroMode(mode: SkipIntroMode) {
+        store().edit { prefs ->
+            prefs[skipIntroModeKey] = mode.storedValue
+            prefs[skipIntroEnabledKey] = (mode != SkipIntroMode.OFF)
         }
     }
 
@@ -1585,9 +1678,24 @@ class PlayerSettingsDataStore @Inject constructor(
     }
 
     // Dolby Vision setters (libdovi conversion)
+    suspend fun setConvertDvProfile7To81(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[convertDvProfile7To81Key] = enabled
+            if (enabled) {
+                prefs[dv7HandlingModeKey] = Dv7HandlingMode.DV81_LIBDOVI.name
+            } else if (prefs[dv7HandlingModeKey] == Dv7HandlingMode.DV81_LIBDOVI.name) {
+                prefs[dv7HandlingModeKey] = Dv7HandlingMode.AUTO.name
+            }
+        }
+    }
     suspend fun setDv5ToDv81Enabled(enabled: Boolean) { store().edit { it[dv5ToDv81EnabledKey] = enabled } }
     suspend fun setDv7ToDv81PreserveMappingEnabled(enabled: Boolean) { store().edit { it[dv7ToDv81PreserveMappingEnabledKey] = enabled } }
-    suspend fun setDv7HandlingMode(mode: Dv7HandlingMode) { store().edit { it[dv7HandlingModeKey] = mode.name } }
+    suspend fun setDv7HandlingMode(mode: Dv7HandlingMode) {
+        store().edit { prefs ->
+            prefs[dv7HandlingModeKey] = mode.name
+            prefs[convertDvProfile7To81Key] = (mode == Dv7HandlingMode.DV81_LIBDOVI)
+        }
+    }
     suspend fun setDv7LibdoviModeOverride(mode: Int) { store().edit { it[dv7LibdoviModeOverrideKey] = mode.coerceIn(-1, 4) } }
     suspend fun setStripHdr10PlusSei(enabled: Boolean) { store().edit { it[stripHdr10PlusSeiKey] = enabled } }
 
@@ -1658,6 +1766,48 @@ class PlayerSettingsDataStore @Inject constructor(
         }
     }
     suspend fun setBufferRetainBackBufferFromKeyframe(retain: Boolean) { store().edit { it[retainBackBufferFromKeyframeKey] = retain } }
+
+    suspend fun setBufferPreset(preset: PlaybackBufferPreset) {
+        store().edit { prefs ->
+            prefs[bufferPresetKey] = preset.storedValue
+            when (preset) {
+                PlaybackBufferPreset.LOW_RAM_32BIT -> {
+                    prefs[minBufferMsKey] = 15_000
+                    prefs[maxBufferMsKey] = 30_000
+                    prefs[bufferForPlaybackMsKey] = 2_500
+                    prefs[bufferForPlaybackAfterRebufferMsKey] = 5_000
+                    prefs[targetBufferSizeMbKey] = 32
+                    prefs[backBufferDurationMsKey] = 0
+                    prefs[bufferEngineEnabledKey] = true
+                }
+                PlaybackBufferPreset.BALANCED -> {
+                    prefs[minBufferMsKey] = 30_000
+                    prefs[maxBufferMsKey] = 60_000
+                    prefs[bufferForPlaybackMsKey] = 2_500
+                    prefs[bufferForPlaybackAfterRebufferMsKey] = 5_000
+                    prefs[targetBufferSizeMbKey] = 64
+                    prefs[backBufferDurationMsKey] = 0
+                    prefs[bufferEngineEnabledKey] = true
+                }
+                PlaybackBufferPreset.HIGH_BITRATE -> {
+                    prefs[minBufferMsKey] = 60_000
+                    prefs[maxBufferMsKey] = 120_000
+                    prefs[bufferForPlaybackMsKey] = 5_000
+                    prefs[bufferForPlaybackAfterRebufferMsKey] = 10_000
+                    prefs[targetBufferSizeMbKey] = 128
+                    prefs[backBufferDurationMsKey] = 0
+                    prefs[bufferEngineEnabledKey] = true
+                }
+                PlaybackBufferPreset.CUSTOM -> {
+                    prefs[bufferEngineEnabledKey] = true
+                }
+            }
+        }
+    }
+
+    suspend fun setReleaseHardwareDecoderWhenBackgrounded(enabled: Boolean) {
+        store().edit { it[releaseHardwareDecoderWhenBackgroundedKey] = enabled }
+    }
 
     suspend fun resetBufferSettingsToDefaults() {
         store().edit { prefs ->

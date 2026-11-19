@@ -88,7 +88,8 @@ internal data class HeroSlide(
     val ratingIsImdb: Boolean,
     val description: String?,
     val tag: FeaturedTag?,
-    val tagSeason: Int?
+    val tagSeason: Int?,
+    val multiRatings: com.nuvio.tv.domain.model.MDBListRatings? = null
 )
 
 /**
@@ -129,7 +130,8 @@ internal fun HeroWindow(
      */
     edgeToEdge: Boolean = false,
     textStart: androidx.compose.ui.unit.Dp = 24.dp,
-    textBottom: androidx.compose.ui.unit.Dp = 20.dp
+    textBottom: androidx.compose.ui.unit.Dp = 20.dp,
+    showMultiRatings: Boolean = true
 ) {
     val shape = if (edgeToEdge) androidx.compose.ui.graphics.RectangleShape else RoundedCornerShape(cornerRadius)
     val slide = slides.getOrNull(index)
@@ -159,7 +161,10 @@ internal fun HeroWindow(
         if (windowSize.width <= 0 || windowSize.height <= 0) return@LaunchedEffect
         slides.mapNotNull { it.backdrop }.distinct().forEach { url ->
             prefetchContext.imageLoader.enqueue(
-                ImageRequest.Builder(prefetchContext).data(url).size(windowSize.width, windowSize.height).build()
+                ImageRequest.Builder(prefetchContext)
+                    .data(url)
+                    .size(windowSize.width.coerceAtMost(1280), windowSize.height.coerceAtMost(720))
+                    .build()
             )
         }
     }
@@ -190,9 +195,15 @@ internal fun HeroWindow(
             // once it's in (from the memory cache, so at once).
             val context = LocalContext.current
             AsyncImage(
-                model = remember(nextBackdrop) { ImageRequest.Builder(context).data(nextBackdrop).build() },
+                model = remember(nextBackdrop) {
+                    ImageRequest.Builder(context)
+                        .data(nextBackdrop)
+                        .size(1280, 720)
+                        .build()
+                },
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                alignment = com.nuvio.tv.ui.components.rememberSmartBackdropAlignment(nextBackdrop),
                 onSuccess = { if (nextBackdrop == slide?.backdrop) shownBackdrop = nextBackdrop },
                 onError = { if (nextBackdrop == slide?.backdrop) shownBackdrop = nextBackdrop },
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0f }
@@ -202,9 +213,15 @@ internal fun HeroWindow(
             if (url != null) {
                 val context = LocalContext.current
                 AsyncImage(
-                    model = remember(url) { ImageRequest.Builder(context).data(url).build() },
+                    model = remember(url) {
+                        ImageRequest.Builder(context)
+                            .data(url)
+                            .size(1280, 720)
+                            .build()
+                    },
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
+                    alignment = com.nuvio.tv.ui.components.rememberSmartBackdropAlignment(url),
                     onSuccess = { backdropShown = true },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -260,9 +277,15 @@ internal fun HeroWindow(
                     slide?.backdrop?.let { url ->
                         val context = LocalContext.current
                         AsyncImage(
-                            model = remember(url) { ImageRequest.Builder(context).data(url).build() },
+                            model = remember(url) {
+                                ImageRequest.Builder(context)
+                                    .data(url)
+                                    .size(1280, 720)
+                                    .build()
+                            },
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
+                            alignment = com.nuvio.tv.ui.components.rememberSmartBackdropAlignment(url),
                             modifier = Modifier.fillMaxSize()
                         )
                     } ?: Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1C1C1C)))
@@ -282,16 +305,23 @@ internal fun HeroWindow(
             ) {
                 HeroLogo(slide)
                 Spacer(modifier = Modifier.height(10.dp))
+                val hasMultiRatings = showMultiRatings && slide.multiRatings != null && !slide.multiRatings.isEmpty()
                 DetailsLine(
                     type = slide.typeLabel,
                     genres = listOfNotNull(slide.genre),
                     year = slide.year,
                     runtime = null,
-                    rating = slide.rating,
+                    rating = if (hasMultiRatings) null else slide.rating,
                     ratingIsImdb = slide.ratingIsImdb,
                     color = Color.White,
                     dotColor = Color.White.copy(alpha = 0.6f)
                 )
+                if (hasMultiRatings && slide.multiRatings != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    com.nuvio.tv.ui.components.GlassMultiRatingsPills(
+                        ratings = slide.multiRatings
+                    )
+                }
                 if (!slide.description.isNullOrBlank()) {
                     androidx.compose.animation.AnimatedVisibility(
                         visible = !synopsisHidden,
@@ -300,13 +330,13 @@ internal fun HeroWindow(
                     ) {
                         Column {
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(
+                            com.nuvio.tv.ui.components.AutoScrollingHeroDescription(
                                 text = slide.description,
+                                itemId = slide.key,
                                 color = Color(0xFFEEEEEE),
                                 fontSize = 13.sp,
                                 lineHeight = 17.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2
                             )
                         }
                     }

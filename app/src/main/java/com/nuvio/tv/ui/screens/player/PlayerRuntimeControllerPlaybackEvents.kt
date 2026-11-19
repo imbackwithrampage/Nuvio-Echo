@@ -113,6 +113,49 @@ internal fun PlayerRuntimeController.applyCenterMixLevel(db: Int) {
     _uiState.update { state ->
         state.copy(centerMixLevelDb = clampedDb)
     }
+    if (isUsingMpvEngine()) {
+        val selectedTrack = _uiState.value.audioTracks.getOrNull(_uiState.value.selectedAudioTrackIndex)
+        val channelCount = selectedTrack?.channelCount ?: 2
+        mpvView?.applyAudioFilters(
+            nightMode = _uiState.value.nightModeEnabled,
+            lfeMixLevel = _uiState.value.lfeMixLevel,
+            centerMixDb = clampedDb,
+            channelCount = channelCount
+        )
+    }
+}
+
+internal fun PlayerRuntimeController.applyNightMode(enabled: Boolean) {
+    _uiState.update { state ->
+        state.copy(nightModeEnabled = enabled)
+    }
+    if (isUsingMpvEngine()) {
+        val selectedTrack = _uiState.value.audioTracks.getOrNull(_uiState.value.selectedAudioTrackIndex)
+        val channelCount = selectedTrack?.channelCount ?: 2
+        mpvView?.applyAudioFilters(
+            nightMode = enabled,
+            lfeMixLevel = _uiState.value.lfeMixLevel,
+            centerMixDb = _uiState.value.centerMixLevelDb,
+            channelCount = channelCount
+        )
+    }
+}
+
+internal fun PlayerRuntimeController.applyLfeMixLevel(level: Float) {
+    val clamped = level.coerceIn(PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN, PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX)
+    _uiState.update { state ->
+        state.copy(lfeMixLevel = clamped)
+    }
+    if (isUsingMpvEngine()) {
+        val selectedTrack = _uiState.value.audioTracks.getOrNull(_uiState.value.selectedAudioTrackIndex)
+        val channelCount = selectedTrack?.channelCount ?: 2
+        mpvView?.applyAudioFilters(
+            nightMode = _uiState.value.nightModeEnabled,
+            lfeMixLevel = clamped,
+            centerMixDb = _uiState.value.centerMixLevelDb,
+            channelCount = channelCount
+        )
+    }
 }
 
 internal fun PlayerRuntimeController.updateAudioControlAvailability(
@@ -121,8 +164,10 @@ internal fun PlayerRuntimeController.updateAudioControlAvailability(
 ) {
     val selectedTrack = audioTracks.getOrNull(selectedAudioIndex)
     val isAudioAmplificationAvailable = isUsingMpvEngine() || _exoPlayer != null
+    val channelCount = selectedTrack?.channelCount ?: 2
     val isCenterMixAvailable =
-        ffmpegAudioRenderer?.isCenterMixActive() == true && (selectedTrack?.channelCount ?: 0) > 2
+        ffmpegAudioRenderer?.isCenterMixActive() == true && channelCount > 2
+    val isLfeControlAvailable = PlayerAudioFilterPolicy.isLfeDownmixAvailable(channelCount)
     val clampedDb = _uiState.value.audioAmplificationDb
         .coerceIn(AUDIO_AMPLIFICATION_MIN_DB, AUDIO_AMPLIFICATION_MAX_DB)
     gainAudioProcessor.setGainDb(
@@ -131,7 +176,16 @@ internal fun PlayerRuntimeController.updateAudioControlAvailability(
     _uiState.update { state ->
         state.copy(
             isAudioAmplificationAvailable = isAudioAmplificationAvailable,
-            isCenterMixAvailable = isCenterMixAvailable
+            isCenterMixAvailable = isCenterMixAvailable,
+            isLfeControlAvailable = isLfeControlAvailable
+        )
+    }
+    if (isUsingMpvEngine()) {
+        mpvView?.applyAudioFilters(
+            nightMode = _uiState.value.nightModeEnabled,
+            lfeMixLevel = _uiState.value.lfeMixLevel,
+            centerMixDb = _uiState.value.centerMixLevelDb,
+            channelCount = channelCount
         )
     }
 }
@@ -1363,6 +1417,19 @@ fun PlayerRuntimeController.onEvent(event: PlayerEvent) {
                 scope.launch {
                     playerSettingsDataStore.setCenterMixLevelDb(clampedDb)
                 }
+            }
+        }
+        is PlayerEvent.OnSetNightMode -> {
+            applyNightMode(event.enabled)
+            scope.launch {
+                playerSettingsDataStore.setNightModeEnabled(event.enabled)
+            }
+        }
+        is PlayerEvent.OnSetLfeMixLevel -> {
+            val clamped = event.level.coerceIn(PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN, PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX)
+            applyLfeMixLevel(clamped)
+            scope.launch {
+                playerSettingsDataStore.setLfeMixLevel(clamped)
             }
         }
         is PlayerEvent.OnSelectSubtitleTrack -> {

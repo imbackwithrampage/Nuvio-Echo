@@ -69,11 +69,16 @@ internal fun AudioSelectionOverlay(
     isAmplificationAvailable: Boolean,
     centerMixLevelDb: Int,
     isCenterMixAvailable: Boolean,
+    nightModeEnabled: Boolean = false,
+    lfeMixLevel: Float = 0.0f,
+    isLfeAvailable: Boolean = false,
     persistAmplification: Boolean,
     onTrackSelected: (Int) -> Unit,
     onAudioDelayChange: (Int) -> Unit,
     onAmplificationChange: (Int) -> Unit,
     onCenterMixLevelChange: (Int) -> Unit,
+    onNightModeToggle: (Boolean) -> Unit = {},
+    onLfeMixLevelChange: (Float) -> Unit = {},
     onPersistAmplificationChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -92,6 +97,9 @@ internal fun AudioSelectionOverlay(
     val ampPlusFocusRequester = remember { FocusRequester() }
     val centerMinusFocusRequester = remember { FocusRequester() }
     val centerPlusFocusRequester = remember { FocusRequester() }
+    val lfeMinusFocusRequester = remember { FocusRequester() }
+    val lfePlusFocusRequester = remember { FocusRequester() }
+    val nightModeFocusRequester = remember { FocusRequester() }
     val persistFocusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val currentDelayMs = audioDelayMs.coerceIn(AUDIO_DELAY_MIN_MS, AUDIO_DELAY_MAX_MS)
@@ -103,6 +111,12 @@ internal fun AudioSelectionOverlay(
     val currentCenterMixDb = centerMixLevelDb.coerceIn(CENTER_MIX_LEVEL_MIN_DB, CENTER_MIX_LEVEL_MAX_DB)
     val canDecreaseCenterMix = isCenterMixAvailable && currentCenterMixDb > CENTER_MIX_LEVEL_MIN_DB
     val canIncreaseCenterMix = isCenterMixAvailable && currentCenterMixDb < CENTER_MIX_LEVEL_MAX_DB
+    val currentLfeLevel = lfeMixLevel.coerceIn(
+        PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN,
+        PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX
+    )
+    val canDecreaseLfe = isLfeAvailable && currentLfeLevel > PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN + 0.05f
+    val canIncreaseLfe = isLfeAvailable && currentLfeLevel < PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX - 0.05f
 
     var lastFocusedAudioIndex by rememberSaveable { mutableStateOf<Int?>(null) }
     var pendingControlFocusTarget by rememberSaveable {
@@ -138,7 +152,9 @@ internal fun AudioSelectionOverlay(
                 canIncreaseAmp -> ampPlusFocusRequester
                 canDecreaseCenterMix -> centerMinusFocusRequester
                 canIncreaseCenterMix -> centerPlusFocusRequester
-                else -> persistFocusRequester
+                canDecreaseLfe -> lfeMinusFocusRequester
+                canIncreaseLfe -> lfePlusFocusRequester
+                else -> nightModeFocusRequester
             }
             runCatching { initialControlsFocusRequester.requestFocus() }
         }
@@ -154,6 +170,9 @@ internal fun AudioSelectionOverlay(
             AudioControlFocusTarget.AmpPlus -> canIncreaseAmp
             AudioControlFocusTarget.CenterMinus -> canDecreaseCenterMix
             AudioControlFocusTarget.CenterPlus -> canIncreaseCenterMix
+            AudioControlFocusTarget.LfeMinus -> canDecreaseLfe
+            AudioControlFocusTarget.LfePlus -> canIncreaseLfe
+            AudioControlFocusTarget.NightMode -> true
             AudioControlFocusTarget.Persist -> true
         }
         if (!targetCanFocus) return@LaunchedEffect
@@ -164,6 +183,9 @@ internal fun AudioSelectionOverlay(
             AudioControlFocusTarget.AmpPlus -> ampPlusFocusRequester
             AudioControlFocusTarget.CenterMinus -> centerMinusFocusRequester
             AudioControlFocusTarget.CenterPlus -> centerPlusFocusRequester
+            AudioControlFocusTarget.LfeMinus -> lfeMinusFocusRequester
+            AudioControlFocusTarget.LfePlus -> lfePlusFocusRequester
+            AudioControlFocusTarget.NightMode -> nightModeFocusRequester
             AudioControlFocusTarget.Persist -> persistFocusRequester
         }
         delay(80)
@@ -205,6 +227,9 @@ internal fun AudioSelectionOverlay(
                 isAmplificationAvailable = isAmplificationAvailable,
                 centerMixLevelDb = centerMixLevelDb,
                 isCenterMixAvailable = isCenterMixAvailable,
+                nightModeEnabled = nightModeEnabled,
+                lfeMixLevel = lfeMixLevel,
+                isLfeAvailable = isLfeAvailable,
                 persistAmplification = persistAmplification,
                 delayMinusFocusRequester = delayMinusFocusRequester,
                 delayPlusFocusRequester = delayPlusFocusRequester,
@@ -212,6 +237,9 @@ internal fun AudioSelectionOverlay(
                 ampPlusFocusRequester = ampPlusFocusRequester,
                 centerMinusFocusRequester = centerMinusFocusRequester,
                 centerPlusFocusRequester = centerPlusFocusRequester,
+                lfeMinusFocusRequester = lfeMinusFocusRequester,
+                lfePlusFocusRequester = lfePlusFocusRequester,
+                nightModeFocusRequester = nightModeFocusRequester,
                 persistFocusRequester = persistFocusRequester,
                 leftFocusRequester = stepperLeft,
                 onAudioDelayChange = onAudioDelayChange,
@@ -220,6 +248,8 @@ internal fun AudioSelectionOverlay(
                     onAmplificationChange(nextDb)
                 },
                 onCenterMixLevelChange = onCenterMixLevelChange,
+                onNightModeToggle = onNightModeToggle,
+                onLfeMixLevelChange = onLfeMixLevelChange,
                 onPersistAmplificationChange = onPersistAmplificationChange
             )
         } else if (languageOptions != null) {
@@ -328,6 +358,9 @@ private fun AudioControlsContent(
     isAmplificationAvailable: Boolean,
     centerMixLevelDb: Int,
     isCenterMixAvailable: Boolean,
+    nightModeEnabled: Boolean,
+    lfeMixLevel: Float,
+    isLfeAvailable: Boolean,
     persistAmplification: Boolean,
     delayMinusFocusRequester: FocusRequester,
     delayPlusFocusRequester: FocusRequester,
@@ -335,11 +368,16 @@ private fun AudioControlsContent(
     ampPlusFocusRequester: FocusRequester,
     centerMinusFocusRequester: FocusRequester,
     centerPlusFocusRequester: FocusRequester,
+    lfeMinusFocusRequester: FocusRequester,
+    lfePlusFocusRequester: FocusRequester,
+    nightModeFocusRequester: FocusRequester,
     persistFocusRequester: FocusRequester,
     leftFocusRequester: FocusRequester,
     onAudioDelayChange: (Int) -> Unit,
     onAmplificationChange: (Int, AudioControlFocusTarget) -> Unit,
     onCenterMixLevelChange: (Int) -> Unit,
+    onNightModeToggle: (Boolean) -> Unit,
+    onLfeMixLevelChange: (Float) -> Unit,
     onPersistAmplificationChange: (Boolean) -> Unit
 ) {
     val currentDelayMs = audioDelayMs.coerceIn(AUDIO_DELAY_MIN_MS, AUDIO_DELAY_MAX_MS)
@@ -351,25 +389,34 @@ private fun AudioControlsContent(
     val currentCenterMixDb = centerMixLevelDb.coerceIn(CENTER_MIX_LEVEL_MIN_DB, CENTER_MIX_LEVEL_MAX_DB)
     val canDecreaseCenterMix = isCenterMixAvailable && currentCenterMixDb > CENTER_MIX_LEVEL_MIN_DB
     val canIncreaseCenterMix = isCenterMixAvailable && currentCenterMixDb < CENTER_MIX_LEVEL_MAX_DB
+    val currentLfeLevel = lfeMixLevel.coerceIn(
+        PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN,
+        PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX
+    )
+    val canDecreaseLfe = isLfeAvailable && currentLfeLevel > PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN + 0.05f
+    val canIncreaseLfe = isLfeAvailable && currentLfeLevel < PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX - 0.05f
 
     val firstDelayFocusRequester = if (canDecreaseDelay) {
         delayMinusFocusRequester
     } else {
         delayPlusFocusRequester
     }
-    val firstAmpFocusRequester = when {
-        canDecreaseAmp -> ampMinusFocusRequester
-        canIncreaseAmp -> ampPlusFocusRequester
-        canDecreaseCenterMix -> centerMinusFocusRequester
-        canIncreaseCenterMix -> centerPlusFocusRequester
-        else -> persistFocusRequester
+    val firstLfeFocusRequester = when {
+        canDecreaseLfe -> lfeMinusFocusRequester
+        canIncreaseLfe -> lfePlusFocusRequester
+        else -> nightModeFocusRequester
     }
     val firstCenterFocusRequester = when {
         canDecreaseCenterMix -> centerMinusFocusRequester
         canIncreaseCenterMix -> centerPlusFocusRequester
-        else -> persistFocusRequester
+        else -> firstLfeFocusRequester
     }
-    val persistUpFocusRequester = when {
+    val firstAmpFocusRequester = when {
+        canDecreaseAmp -> ampMinusFocusRequester
+        canIncreaseAmp -> ampPlusFocusRequester
+        else -> firstCenterFocusRequester
+    }
+    val lfeUpFocusRequester = when {
         canDecreaseCenterMix -> centerMinusFocusRequester
         canIncreaseCenterMix -> centerPlusFocusRequester
         canDecreaseAmp -> ampMinusFocusRequester
@@ -377,6 +424,12 @@ private fun AudioControlsContent(
         canDecreaseDelay -> delayMinusFocusRequester
         else -> delayPlusFocusRequester
     }
+    val nightModeUpFocusRequester = when {
+        canDecreaseLfe -> lfeMinusFocusRequester
+        canIncreaseLfe -> lfePlusFocusRequester
+        else -> lfeUpFocusRequester
+    }
+    val persistUpFocusRequester = nightModeFocusRequester
     val delayPlusLeftFocusRequester = if (canDecreaseDelay) {
         delayMinusFocusRequester
     } else {
@@ -392,17 +445,21 @@ private fun AudioControlsContent(
     } else {
         leftFocusRequester
     }
-    val persistLeftFocusRequester = when {
-        canIncreaseCenterMix -> centerPlusFocusRequester
-        canDecreaseCenterMix -> centerMinusFocusRequester
-        canIncreaseAmp -> ampPlusFocusRequester
-        canDecreaseAmp -> ampMinusFocusRequester
-        else -> leftFocusRequester
+    val lfePlusLeftFocusRequester = if (canDecreaseLfe) {
+        lfeMinusFocusRequester
+    } else {
+        leftFocusRequester
     }
+    val persistLeftFocusRequester = leftFocusRequester
     val centerHelperText = if (isCenterMixAvailable) {
         stringResource(R.string.audio_center_mix_help)
     } else {
         stringResource(R.string.audio_center_mix_unavailable)
+    }
+    val lfeHelperText = if (isLfeAvailable) {
+        stringResource(R.string.audio_lfe_level_help)
+    } else {
+        stringResource(R.string.audio_lfe_level_unavailable)
     }
 
     val amplificationHelperText = when {
@@ -525,7 +582,7 @@ private fun AudioControlsContent(
                 minusLeftFocusRequester = leftFocusRequester,
                 plusLeftFocusRequester = centerPlusLeftFocusRequester,
                 upFocusRequester = firstAmpFocusRequester,
-                downFocusRequester = persistFocusRequester,
+                downFocusRequester = firstLfeFocusRequester,
                 onDecrease = {
                     val nextDb = currentCenterMixDb - 1
                     onCenterMixLevelChange(nextDb)
@@ -541,6 +598,53 @@ private fun AudioControlsContent(
                     }
                 }
             )
+
+            AdjustmentSection(
+                title = stringResource(R.string.audio_lfe_level_label),
+                valueText = PlayerAudioFilterPolicy.formatLfeMixLevel(currentLfeLevel),
+                helperText = lfeHelperText,
+                canDecrease = canDecreaseLfe,
+                canIncrease = canIncreaseLfe,
+                minusFocusRequester = lfeMinusFocusRequester,
+                plusFocusRequester = lfePlusFocusRequester,
+                minusLeftFocusRequester = leftFocusRequester,
+                plusLeftFocusRequester = lfePlusLeftFocusRequester,
+                upFocusRequester = lfeUpFocusRequester,
+                downFocusRequester = nightModeFocusRequester,
+                onDecrease = {
+                    val nextLfe = (Math.round((currentLfeLevel - PlayerAudioFilterPolicy.LFE_MIX_LEVEL_STEP) * 10f) / 10f)
+                        .coerceIn(PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN, PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX)
+                    onLfeMixLevelChange(nextLfe)
+                    if (nextLfe <= PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN + 0.05f && canIncreaseLfe) {
+                        runCatching { lfePlusFocusRequester.requestFocus() }
+                    }
+                },
+                onIncrease = {
+                    val nextLfe = (Math.round((currentLfeLevel + PlayerAudioFilterPolicy.LFE_MIX_LEVEL_STEP) * 10f) / 10f)
+                        .coerceIn(PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MIN, PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX)
+                    onLfeMixLevelChange(nextLfe)
+                    if (nextLfe >= PlayerAudioFilterPolicy.LFE_MIX_LEVEL_MAX - 0.05f && canDecreaseLfe) {
+                        runCatching { lfeMinusFocusRequester.requestFocus() }
+                    }
+                }
+            )
+
+            PopSettingRow(
+                label = stringResource(R.string.audio_night_mode_label),
+                helper = stringResource(R.string.audio_night_mode_help)
+            ) {
+                PopPill(
+                    text = stringResource(if (nightModeEnabled) R.string.subtitle_style_on else R.string.subtitle_style_off),
+                    selected = nightModeEnabled,
+                    onClick = { onNightModeToggle(!nightModeEnabled) },
+                    focusRequester = nightModeFocusRequester,
+                    modifier = Modifier.focusProperties {
+                        left = leftFocusRequester
+                        up = nightModeUpFocusRequester
+                        down = persistFocusRequester
+                    }
+                )
+            }
 
             PopSettingRow(label = stringResource(R.string.audio_mix_persist_label)) {
                 PopPill(
@@ -696,6 +800,9 @@ private enum class AudioControlFocusTarget {
     AmpPlus,
     CenterMinus,
     CenterPlus,
+    LfeMinus,
+    LfePlus,
+    NightMode,
     Persist
 }
 

@@ -39,7 +39,8 @@ class TrailerService(
     /** The tallest trailer picture to fetch for a surface that many pixels tall (null: full screen). */
     private val maxTrailerVideoHeight: suspend (surfaceHeightPx: Int?) -> Int = { Int.MAX_VALUE },
     /** IMDb's copy of the trailer, when YouTube has none or refuses (null in tests: no fallback). */
-    private val imdbTrailerSource: ImdbTrailerSource? = null
+    private val imdbTrailerSource: ImdbTrailerSource? = null,
+    private val trailerCacheManager: TrailerCacheManager? = null
 ) {
     @Inject
     constructor(
@@ -52,7 +53,8 @@ class TrailerService(
         // the primary one tests call with five arguments.
         @Suppress("UNUSED_PARAMETER") trailerSettingsDataStore: com.nuvio.tv.data.local.TrailerSettingsDataStore,
         imdbTrailerSource: ImdbTrailerSource,
-        betaSettings: com.nuvio.tv.data.local.BetaPerformanceSettingsDataStore
+        betaSettings: com.nuvio.tv.data.local.BetaPerformanceSettingsDataStore,
+        trailerCacheManager: TrailerCacheManager
     ) : this(
         trailerApi = trailerApi,
         tmdbApi = tmdbApi,
@@ -65,7 +67,8 @@ class TrailerService(
             val quality = kotlin.runCatching { betaSettings.settings.first().trailerQuality }.getOrDefault(TrailerVideoPolicy.AUTO)
             TrailerVideoPolicy.heightFor(quality, surfaceHeightPx)
         },
-        imdbTrailerSource = imdbTrailerSource
+        imdbTrailerSource = imdbTrailerSource,
+        trailerCacheManager = trailerCacheManager
     )
 
     // Cache: "title|year|tmdbId|type|maxHeight" -> trailer playback source (NEGATIVE_CACHE sentinel for misses).
@@ -294,6 +297,12 @@ class TrailerService(
             val sourceCacheKey = youtubeKey?.takeIf { it.isNotBlank() }?.let { "$it|$maxHeight" }
                 ?: return@withContext resolveYouTubeSource(youtubeUrl, null, maxHeight, title, year)
 
+            // Check TrailerCacheManager (strict 3-hour TTL & persistent disk) first
+            trailerCacheManager?.get(sourceCacheKey)?.let { cached ->
+                Log.d(TAG, "TrailerCacheManager hit for key=${obfuscateYoutubeKey(youtubeKey.orEmpty())}")
+                return@withContext cached
+            }
+
             getValidCachedYoutubeSource(sourceCacheKey)?.let { cached ->
                 Log.d(TAG, "YouTube cache hit for key=${obfuscateYoutubeKey(youtubeKey.orEmpty())}")
                 return@withContext cached
@@ -301,7 +310,8 @@ class TrailerService(
 
             resolveYouTubeSourceOnce(sourceCacheKey) {
                 // Re-check: another caller may have just finished this video.
-                getValidCachedYoutubeSource(sourceCacheKey)
+                trailerCacheManager?.get(sourceCacheKey)
+                    ?: getValidCachedYoutubeSource(sourceCacheKey)
                     ?: resolveYouTubeSource(youtubeUrl, sourceCacheKey, maxHeight, title, year)
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -354,12 +364,14 @@ class TrailerService(
         Log.d(TAG, "Attempting in-app YouTube extraction for ${summarizeUrl(youtubeUrl)}")
         val localSource = inAppYouTubeExtractor.extractPlaybackSource(youtubeUrl, maxHeight)
         if (localSource != null) {
+            val expireInstant = extractUrlExpireInstant(localSource)
             if (sourceCacheKey != null) {
                 youtubeSourceCache[sourceCacheKey] = CachedTrailerPlaybackSource(
                     playbackSource = localSource,
                     cachedAt = Instant.now(clock),
-                    expiresAt = extractUrlExpireInstant(localSource)
+                    expiresAt = expireInstant
                 )
+                trailerCacheManager?.put(sourceCacheKey, localSource, expireInstant)
             }
             Log.d(
                 TAG,
@@ -485,9 +497,21 @@ class TrailerService(
         return null
     }
 
+    /**
+     * Invalidate cached trailer source immediately across memory and disk (e.g. on HTTP 403 / 410 expired signature).
+     */
+    suspend fun invalidateTrailer(youtubeKeyOrUrl: String) = withContext(Dispatchers.IO) {
+        val key = extractYouTubeVideoId(youtubeKeyOrUrl) ?: youtubeKeyOrUrl
+        Log.d(TAG, "Invalidating trailer cache for key=$key")
+        trailerCacheManager?.invalidate(key)
+        youtubeSourceCache.keys.removeIf { it.startsWith(key) || it.contains(key) }
+        cache.keys.removeIf { it.contains(key) }
+    }
+
     fun clearCache() {
         cache.clear()
         youtubeSourceCache.clear()
+        trailerCacheManager?.clear()
     }
 
     /**

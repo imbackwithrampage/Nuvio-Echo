@@ -534,6 +534,8 @@ class PlayerRuntimeController(
     internal var isInBackground: Boolean = false
     internal var pendingBackgroundCrashRecovery: Boolean = false
     internal var backgroundCrashSavedPositionMs: Long = 0L
+    internal var wasBackgroundDecoderReleased: Boolean = false
+    internal var backgroundDecoderSavedPositionMs: Long = 0L
 
     internal var skipIntervals: List<SkipInterval> = emptyList()
     /** The databases' times for what's playing; [skipIntervals] is these fitted to the file (PlayerRuntimeControllerSkipTimes). */
@@ -550,6 +552,7 @@ class PlayerRuntimeController(
     internal var skipCreditsSearchedFor: String? = null
     internal var skipCreditsJob: kotlinx.coroutines.Job? = null
     internal var skipIntroEnabled: Boolean = true
+    internal var skipIntroMode: com.nuvio.tv.data.local.SkipIntroMode = com.nuvio.tv.data.local.SkipIntroMode.SHOW_BUTTON
     internal var parentalGuideEnabled: Boolean = false
     internal var autoSkipSegmentTypes: Set<AutoSkipSegmentType> = emptySet()
     internal var playerSettingsInitialized: Boolean = false
@@ -728,6 +731,8 @@ class PlayerRuntimeController(
     /** The ExoPlayer's own bandwidth meter, so a hot swap's loading counts toward its speed estimate. */
     @Volatile internal var playerBandwidthMeter: androidx.media3.exoplayer.upstream.BandwidthMeter? = null
     @Volatile internal var currentPlayerSettingsForReport: PlayerSettings = PlayerSettings()
+    internal val playerSettings: PlayerSettings
+        get() = currentPlayerSettingsForReport
 
     internal val dv7ToHevcForcedStreamUrls: MutableSet<String> = mutableSetOf()
     // Streams where manual Convert-to-DV8.1 mode 2 failed to play, so the next

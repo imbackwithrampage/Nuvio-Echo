@@ -167,5 +167,6 @@ private fun LayoutSectionContent(
             onBadgePlacementSelected = viewModel::setStreamBadgePlacement,
             onConfigureBadges = viewModel::startStreamBadgeQrMode
         )
+        LayoutSection.AMBIENT_MODE -> AmbientModeSettingsSection(uiState, onEvent)
     }
 }

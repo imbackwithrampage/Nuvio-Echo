@@ -146,6 +146,7 @@ internal fun PlayerRuntimeController.refreshCurrentStreamQuality() {
     if (quality != _uiState.value.currentStreamQuality) {
         _uiState.update { it.copy(currentStreamQuality = quality) }
     }
+    refreshStreamBadges()
 }
 
 /**

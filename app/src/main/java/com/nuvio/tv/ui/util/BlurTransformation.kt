@@ -12,20 +12,41 @@ import kotlin.math.min
  * @param radius Blur radius in pixels. Higher = more blur. Clamped to 1..250.
  */
 class BlurTransformation(
-    private val radius: Int = 25
+    private val radius: Int = 25,
+    private val scale: Float = 0.25f
 ) : Transformation() {
 
-    override val cacheKey: String = "stack_blur_$radius"
+    override val cacheKey: String = "stack_blur_${radius}_scale_${scale}"
 
     override suspend fun transform(input: Bitmap, size: Size): Bitmap {
         val r = radius.coerceIn(1, 250)
+        val s = scale.coerceIn(0.1f, 1.0f)
+
+        val targetWidth = (input.width * s).toInt().coerceAtLeast(1)
+        val targetHeight = (input.height * s).toInt().coerceAtLeast(1)
+
+        val scaled = if (s < 1.0f) {
+            Bitmap.createScaledBitmap(input, targetWidth, targetHeight, true)
+        } else {
+            input
+        }
 
         // Work on a mutable copy
-        val bitmap = input.copy(Bitmap.Config.ARGB_8888, true)
+        val bitmap = scaled.copy(Bitmap.Config.ARGB_8888, true)
             ?: return input
 
-        stackBlur(bitmap, r)
-        return bitmap
+        stackBlur(bitmap, (r * s).toInt().coerceAtLeast(1))
+
+        return if (s < 1.0f) {
+            val upscaled = Bitmap.createScaledBitmap(bitmap, input.width, input.height, true)
+            if (scaled != input && scaled != bitmap) {
+                scaled.recycle()
+            }
+            bitmap.recycle()
+            upscaled
+        } else {
+            bitmap
+        }
     }
 
     /**

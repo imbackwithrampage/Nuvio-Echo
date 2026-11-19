@@ -91,6 +91,7 @@ class LayoutPreferenceDataStore @Inject constructor(
     private val alwaysShowLandscapeClearlogoKey = booleanPreferencesKey("always_show_landscape_clearlogo")
     private val episodeOptionsOverlayStyleKey = stringPreferencesKey("episode_options_overlay_style")
     private val homeImdbRatingsVisibilityKey = stringPreferencesKey("home_imdb_ratings_visibility")
+    private val multiProviderRatingsEnabledKey = booleanPreferencesKey("multi_provider_ratings_enabled")
     private val detailImdbRatingsVisibilityKey = stringPreferencesKey("detail_imdb_ratings_visibility")
     private val useEpisodeThumbnailsInCwKey = booleanPreferencesKey("use_episode_thumbnails_in_cw")
     private val continueWatchingEnabledKey = booleanPreferencesKey("continue_watching_enabled")
@@ -271,6 +272,10 @@ class LayoutPreferenceDataStore @Inject constructor(
         val stored = prefs[homeImdbRatingsVisibilityKey] ?: HomeImdbRatingsVisibility.SHOW_ALL.name
         runCatching { HomeImdbRatingsVisibility.valueOf(stored) }
             .getOrDefault(HomeImdbRatingsVisibility.SHOW_ALL)
+    }
+
+    val multiProviderRatingsEnabled: Flow<Boolean> = profileFlow { prefs ->
+        prefs[multiProviderRatingsEnabledKey] ?: true
     }
 
     val detailImdbRatingsVisibility: Flow<DetailImdbRatingsVisibility> = profileFlow { prefs ->
@@ -563,6 +568,12 @@ class LayoutPreferenceDataStore @Inject constructor(
         }
     }
 
+    suspend fun setBlurContinueWatchingNextUp(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[blurContinueWatchingNextUpKey] = enabled
+        }
+    }
+
     suspend fun setStartupSplashEnabled(enabled: Boolean) {
         store().edit { prefs ->
             prefs[startupSplashEnabledKey] = enabled
@@ -578,6 +589,12 @@ class LayoutPreferenceDataStore @Inject constructor(
     suspend fun setHomeImdbRatingsVisibility(visibility: HomeImdbRatingsVisibility) {
         store().edit { prefs ->
             prefs[homeImdbRatingsVisibilityKey] = visibility.name
+        }
+    }
+
+    suspend fun setMultiProviderRatingsEnabled(enabled: Boolean) {
+        store().edit { prefs ->
+            prefs[multiProviderRatingsEnabledKey] = enabled
         }
     }
 

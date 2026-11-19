@@ -24,11 +24,20 @@ internal fun PlayerRuntimeController.attachMpvView(view: NuvioMpvSurfaceView?) {
     runCatching {
         performPendingMpvHardRestartIfNeeded(view)
         view.applyHi10pGnextSoftwareFallback(shouldUseMpvHi10pGnextSoftwareFallback())
+        view.applyDolbyVisionProfileConversion(playerSettings.convertDvProfile7To81)
+        val (demuxerMaxBytes, demuxerMaxBackBytes) = resolveMpvBufferLimits(playerSettings)
+        view.applyBufferLimits(demuxerMaxBytes, demuxerMaxBackBytes)
         view.applyHardwareDecodeMode(mpvHardwareDecodeModeSetting)
         registerMpvEventRelay(view)
         view.setMedia(currentStreamUrl, currentHeaders)
         view.setPlaybackSpeed(_uiState.value.playbackSpeed)
         view.applyAudioAmplificationDb(_uiState.value.audioAmplificationDb)
+        view.applyAudioFilters(
+            nightMode = _uiState.value.nightModeEnabled,
+            lfeMixLevel = _uiState.value.lfeMixLevel,
+            centerMixDb = _uiState.value.centerMixLevelDb,
+            channelCount = _uiState.value.audioTracks.getOrNull(_uiState.value.selectedAudioTrackIndex)?.channelCount ?: 2
+        )
         view.applyAudioLanguagePreferences(mpvPreferredAudioLanguages)
         view.applySubtitleLanguagePreferences(
             preferred = _uiState.value.subtitleStyle.preferredLanguage,
@@ -134,6 +143,9 @@ internal fun PlayerRuntimeController.initializeMpvPlayer(
         )
         performPendingMpvHardRestartIfNeeded(view)
         view.applyHi10pGnextSoftwareFallback(shouldUseMpvHi10pGnextSoftwareFallback())
+        view.applyDolbyVisionProfileConversion(playerSettings.convertDvProfile7To81)
+        val (demuxerMaxBytes, demuxerMaxBackBytes) = resolveMpvBufferLimits(playerSettings)
+        view.applyBufferLimits(demuxerMaxBytes, demuxerMaxBackBytes)
         view.applyHardwareDecodeMode(mpvHardwareDecodeModeSetting)
         registerMpvEventRelay(view)
         val initialResumePosition = resolvePendingInitialResumePosition()
@@ -152,6 +164,12 @@ internal fun PlayerRuntimeController.initializeMpvPlayer(
         }
         view.setPlaybackSpeed(_uiState.value.playbackSpeed)
         view.applyAudioAmplificationDb(_uiState.value.audioAmplificationDb)
+        view.applyAudioFilters(
+            nightMode = _uiState.value.nightModeEnabled,
+            lfeMixLevel = _uiState.value.lfeMixLevel,
+            centerMixDb = _uiState.value.centerMixLevelDb,
+            channelCount = _uiState.value.audioTracks.getOrNull(_uiState.value.selectedAudioTrackIndex)?.channelCount ?: 2
+        )
         view.applyAudioLanguagePreferences(mpvPreferredAudioLanguages)
         view.applySubtitleLanguagePreferences(
             preferred = _uiState.value.subtitleStyle.preferredLanguage,
@@ -265,8 +283,67 @@ internal fun PlayerRuntimeController.pauseForLifecycle() {
     }
 }
 
+private fun resolveMpvBufferLimits(settings: com.nuvio.tv.data.local.PlayerSettings): Pair<Long, Long> {
+    return when (settings.bufferPreset) {
+        com.nuvio.tv.data.local.PlaybackBufferPreset.LOW_RAM_32BIT -> 32L * 1024 * 1024 to 16L * 1024 * 1024
+        com.nuvio.tv.data.local.PlaybackBufferPreset.BALANCED -> 64L * 1024 * 1024 to 32L * 1024 * 1024
+        com.nuvio.tv.data.local.PlaybackBufferPreset.HIGH_BITRATE -> 128L * 1024 * 1024 to 64L * 1024 * 1024
+        com.nuvio.tv.data.local.PlaybackBufferPreset.CUSTOM -> {
+            val mb = settings.bufferSettings.targetBufferSizeMb.coerceIn(16, 256).toLong()
+            (mb * 1024 * 1024) to (mb * 1024 * 512)
+        }
+    }
+}
+
+internal fun PlayerRuntimeController.stopForLifecycle() {
+    isInBackground = true
+    if (playerSettings.releaseHardwareDecoderWhenBackgrounded) {
+        val currentPos = _playbackTimeline.value.currentPosition.takeIf { it > 0L } ?: 0L
+        if (currentPos > 0L) {
+            backgroundDecoderSavedPositionMs = currentPos
+            wasBackgroundDecoderReleased = true
+            Log.i(PlayerRuntimeController.TAG, "LIFECYCLE_STOP: Releasing hardware video decoders and surfaces at pos=$currentPos ms")
+        }
+        try {
+            currentMediaSession?.release()
+            currentMediaSession = null
+        } catch (_: Exception) {}
+
+        if (isUsingMpvEngine()) {
+            mpvView?.destroy()
+        } else {
+            _exoPlayer?.let { player ->
+                player.clearVideoSurface()
+                player.release()
+                markExoReleased()
+            }
+            _exoPlayer = null
+            trackSelector = null
+        }
+    }
+}
+
 internal fun PlayerRuntimeController.resumeForLifecycle() {
     isInBackground = false
+
+    // If hardware decoder was released due to backgrounding, cleanly restore playback now.
+    if (wasBackgroundDecoderReleased) {
+        wasBackgroundDecoderReleased = false
+        val savedPosition = backgroundDecoderSavedPositionMs
+        backgroundDecoderSavedPositionMs = 0L
+        if (savedPosition > 0L) {
+            _uiState.update { it.copy(pendingSeekPosition = savedPosition) }
+        }
+        if (currentStreamUrl.isNotEmpty()) {
+            Log.i(PlayerRuntimeController.TAG, "LIFECYCLE_RESUME: Rebuilding player from background release at pos=$savedPosition ms")
+            if (isUsingMpvEngine()) {
+                initializeMpvPlayer(currentStreamUrl, currentHeaders)
+            } else {
+                initializePlayer(currentStreamUrl, currentHeaders, startPaused = true)
+            }
+        }
+        return
+    }
 
     // If the codec crashed while in background, the player was released to free
     // resources. Rebuild it now with the saved position so the user comes back
@@ -428,6 +505,7 @@ private fun PlayerRuntimeController.applyMpvTrackSnapshot(snapshot: MpvTrackSnap
         subtitleTracks = internalSubtitleTracks
     )
     applyPendingAudioLanguage(audioTracks)
+    updateAudioControlAvailability(audioTracks, _uiState.value.selectedAudioTrackIndex)
     logSwitchTrace(
         stage = "mpv-snapshot-after-restore",
         message = "uiAudioIndex=${_uiState.value.selectedAudioTrackIndex} " +

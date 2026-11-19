@@ -98,6 +98,18 @@ internal fun LayoutHomeContentSection(
         onToggle = { onEvent(LayoutSettingsEvent.SetHideUnreleasedContent(!uiState.hideUnreleasedContent)) }
     )
     SettingsToggleRow(
+        title = stringResource(R.string.layout_blur_unwatched_cw),
+        subtitle = stringResource(R.string.layout_blur_unwatched_cw_sub),
+        checked = uiState.blurContinueWatchingNextUp,
+        onToggle = { onEvent(LayoutSettingsEvent.SetBlurContinueWatchingNextUp(!uiState.blurContinueWatchingNextUp)) }
+    )
+    SettingsToggleRow(
+        title = stringResource(R.string.layout_multi_provider_ratings),
+        subtitle = stringResource(R.string.layout_multi_provider_ratings_sub),
+        checked = uiState.multiProviderRatingsEnabled,
+        onToggle = { onEvent(LayoutSettingsEvent.SetMultiProviderRatingsEnabled(!uiState.multiProviderRatingsEnabled)) }
+    )
+    SettingsToggleRow(
         title = stringResource(R.string.layout_overall_ratings),
         subtitle = stringResource(
             if (uiState.homeImdbRatingsVisibility.showRatings) {

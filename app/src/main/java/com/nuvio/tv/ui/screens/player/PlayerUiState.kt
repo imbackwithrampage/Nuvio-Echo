@@ -103,6 +103,9 @@ data class PlayerUiState(
     val persistAudioAmplification: Boolean = false,
     val centerMixLevelDb: Int = 0,
     val isCenterMixAvailable: Boolean = false,
+    val nightModeEnabled: Boolean = false,
+    val lfeMixLevel: Float = 0.0f,
+    val isLfeControlAvailable: Boolean = false,
     val showAudioOverlay: Boolean = false,
     val showSubtitleOverlay: Boolean = false,
     val showSubtitleStylePanel: Boolean = false,
@@ -229,6 +232,9 @@ data class PlayerUiState(
     // Stream info overlay
     val showStreamInfoOverlay: Boolean = false,
     val streamInfoData: StreamInfoData? = null,
+    val showStreamCodecBadges: Boolean = true,
+    val customBadgePackPath: String? = null,
+    val streamBadges: com.nuvio.tv.core.player.badges.PlayerStreamBadges = com.nuvio.tv.core.player.badges.PlayerStreamBadges(),
     // Torrent streaming state
     val isTorrentStream: Boolean = false,
     val torrentDownloadSpeed: Long = 0L,
@@ -312,6 +318,8 @@ sealed class PlayerEvent {
     data class OnSetAudioAmplificationDb(val db: Int) : PlayerEvent()
     data class OnSetPersistAudioAmplification(val enabled: Boolean) : PlayerEvent()
     data class OnSetCenterMixLevelDb(val db: Int) : PlayerEvent()
+    data class OnSetNightMode(val enabled: Boolean) : PlayerEvent()
+    data class OnSetLfeMixLevel(val level: Float) : PlayerEvent()
     data class OnSelectSubtitleTrack(val index: Int) : PlayerEvent()
     data object OnDisableSubtitles : PlayerEvent()
     data class OnSelectAddonSubtitle(val subtitle: Subtitle) : PlayerEvent()

@@ -24,6 +24,12 @@ internal fun LayoutDetailPageSection(
         checked = uiState.blurUnwatchedEpisodes,
         onToggle = { onEvent(LayoutSettingsEvent.SetBlurUnwatchedEpisodes(!uiState.blurUnwatchedEpisodes)) }
     )
+    SettingsToggleRow(
+        title = stringResource(R.string.layout_multi_provider_ratings),
+        subtitle = stringResource(R.string.layout_multi_provider_ratings_sub),
+        checked = uiState.multiProviderRatingsEnabled,
+        onToggle = { onEvent(LayoutSettingsEvent.SetMultiProviderRatingsEnabled(!uiState.multiProviderRatingsEnabled)) }
+    )
 
     SettingsSectionLabel(text = stringResource(R.string.layout_detail_group_trailers))
     if (AppFeaturePolicy.inAppTrailerPlaybackEnabled) {

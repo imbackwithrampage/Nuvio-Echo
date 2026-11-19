@@ -99,8 +99,15 @@ internal fun PlaybackVideoSection(
     )
 
     if (settings.usesExoPlayerEngine) {
-        val dv81Conversion = settings.dv7HandlingMode == Dv7HandlingMode.DV81_LIBDOVI
+        val dv81Conversion = settings.dv7HandlingMode == Dv7HandlingMode.DV81_LIBDOVI || settings.convertDvProfile7To81
         SettingsSectionLabel(text = stringResource(R.string.playback_dv_hdr_label))
+        SettingsToggleRow(
+            title = stringResource(R.string.convert_dv_profile_7_to_81_title),
+            subtitle = stringResource(R.string.convert_dv_profile_7_to_81_sub),
+            checked = settings.convertDvProfile7To81,
+            onToggle = { onUpdate { setConvertDvProfile7To81(!settings.convertDvProfile7To81) } },
+            enabled = enabled
+        )
         SettingsActionRow(
             title = stringResource(R.string.dv7_handling_title),
             subtitle = null,
@@ -140,6 +147,13 @@ internal fun PlaybackVideoSection(
 
     if (settings.usesMpvEngine) {
         SettingsSectionLabel(text = stringResource(R.string.playback_mpv_decoding_label))
+        SettingsToggleRow(
+            title = stringResource(R.string.convert_dv_profile_7_to_81_title),
+            subtitle = stringResource(R.string.convert_dv_profile_7_to_81_sub),
+            checked = settings.convertDvProfile7To81,
+            onToggle = { onUpdate { setConvertDvProfile7To81(!settings.convertDvProfile7To81) } },
+            enabled = enabled
+        )
         SettingsActionRow(
             title = stringResource(R.string.audio_mpv_hwdec_title),
             subtitle = null,

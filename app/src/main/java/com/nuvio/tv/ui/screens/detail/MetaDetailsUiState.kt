@@ -79,6 +79,7 @@ data class MetaDetailsUiState(
     val mdbListRatings: MDBListRatings? = null,
     val mdbListRatingOrder: List<String> = com.nuvio.tv.domain.model.MDBListSettings.DEFAULT_RATING_ORDER,
     val isMdbListRatingsActive: Boolean = false,
+    val multiProviderRatingsEnabled: Boolean = true,
     val tmdbRating: Float? = null,
     val comments: List<TraktCommentReview> = emptyList(),
     val commentsCurrentPage: Int = 0,

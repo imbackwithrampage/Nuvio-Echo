@@ -987,6 +987,20 @@
     <string name="layout_use_episode_thumbnails_cw_sub">Use episode thumbnails as default image. When disabled, uses backdrop.</string>
     <string name="layout_blur_unwatched">Blur Unwatched Episodes</string>
     <string name="layout_blur_unwatched_sub">Blur episode thumbnails until watched to avoid spoilers.</string>
+    <string name="layout_blur_unwatched_cw">Blur Unwatched Episode Thumbnails</string>
+    <string name="layout_blur_unwatched_cw_sub">Blur Continue Watching thumbnails for unwatched episodes to prevent spoilers.</string>
+    <string name="playback_show_codec_badges">Show Codec Badges</string>
+    <string name="playback_show_codec_badges_sub">Display resolution, HDR, and audio codec badges on player HUD controls.</string>
+    <string name="playback_custom_badge_pack">Codec Badge Pack</string>
+    <string name="playback_custom_badge_pack_sub">Custom SVG/PNG icon pack for video and audio codec badges.</string>
+    <string name="playback_badge_pack_default">Default (Built-in Badges)</string>
+    <string name="playback_badge_pack_import">Import Badge Pack (.zip)</string>
+    <string name="playback_badge_pack_enter_path">Enter File Path</string>
+    <string name="playback_badge_pack_path_prompt">Enter path to .zip badge pack on device:</string>
+    <string name="playback_badge_pack_imported_success">Badge pack \"%s\" imported successfully.</string>
+    <string name="playback_badge_pack_import_error">Failed to import badge pack: %s</string>
+    <string name="playback_badge_pack_delete">Delete Pack</string>
+    <string name="playback_badge_pack_delete_confirm">Delete custom badge pack \"%s\"?</string>
     <string name="layout_next_up_furthest_episode">Up Next From Furthest Episode</string>
     <string name="layout_next_up_furthest_episode_sub">Show next episode based on the furthest watched episode. Disable for rewatches to use the most recently watched episode instead.</string>
     <string name="layout_show_unaired_next_up">Show Unaired Next Up Episodes</string>
@@ -1862,6 +1876,16 @@
     <string name="audio_center_mix_unavailable">Center mix is only available when FFmpeg downmix is active.</string>
     <string name="audio_maintain_original_audio_on_downmix_title">Maintain original audio on downmix</string>
     <string name="audio_maintain_original_audio_on_downmix_subtitle">When disabled, downmix normalization can reduce overall volume.</string>
+    <string name="audio_night_mode_title">Night mode (DRC)</string>
+    <string name="audio_night_mode_subtitle">Compress dynamic range to boost quiet dialogue and reduce loud sound effects</string>
+    <string name="audio_night_mode_label">Night Mode (DRC)</string>
+    <string name="audio_night_mode_help">Dynamic range compression balances quiet voices and loud action without clipping</string>
+    <string name="audio_lfe_level_title">Subwoofer (LFE) downmix level</string>
+    <string name="audio_lfe_level_subtitle">Adjust LFE channel volume mixed into stereo when downmixing surround sound</string>
+    <string name="audio_lfe_level_label">Downmix: LFE Subwoofer Level</string>
+    <string name="audio_lfe_level_help">Subwoofer (LFE) level mixed into stereo during surround downmixing (0.0 to 2.0)</string>
+    <string name="audio_lfe_level_unavailable">LFE downmix control is only available for multi-channel surround tracks (5.1/7.1)</string>
+    <string name="audio_lfe_level_off">Off (0.0)</string>
 
     <string name="subtitle_dialog_title">Subtitles</string>
     <string name="subtitle_no_builtin">No built-in subtitles available</string>
@@ -3254,4 +3278,50 @@
         <item quantity="one">Added %1$d avatar</item>
         <item quantity="other">Added %1$d avatars</item>
     </plurals>
+    <!-- Multi-Provider Ratings -->
+    <string name="layout_multi_provider_ratings">Multi-Provider Hero Ratings</string>
+    <string name="layout_multi_provider_ratings_sub">Show rating scores from IMDb, TMDB, Rotten Tomatoes, and Metacritic on Hero Banners</string>
+
+    <!-- Ambient Mode -->
+    <string name="ambient_mode_title">Ambient Mode</string>
+    <string name="ambient_mode_subtitle">Idle TV screensaver slideshow with OLED burn-in protection and Ken Burns motion</string>
+    <string name="ambient_mode_section_desc">Configure screensaver timer, slideshow interval, and art sources</string>
+    <string name="ambient_mode_enable_title">Enable Ambient Mode</string>
+    <string name="ambient_mode_enable_subtitle">Launch ambient screensaver after TV inactivity</string>
+    <string name="ambient_mode_timeout_title">Idle Timeout</string>
+    <string name="ambient_mode_timeout_subtitle">Minutes of inactivity before Ambient Mode activates</string>
+    <string name="ambient_mode_timeout_format">%1$d min</string>
+    <string name="ambient_mode_interval_title">Slideshow Interval</string>
+    <string name="ambient_mode_interval_subtitle">Seconds to display each artwork slide</string>
+    <string name="ambient_mode_interval_format">%1$d s</string>
+    <string name="ambient_mode_source_title">Content Source</string>
+    <string name="ambient_mode_source_subtitle">Source of background fanart and metadata</string>
+    <string name="ambient_mode_source_trending">Trending &amp; Highlights</string>
+    <string name="ambient_mode_source_library">Library &amp; Bins</string>
+    <string name="ambient_mode_clock_title">Show Clock &amp; Metadata</string>
+    <string name="ambient_mode_clock_subtitle">Display current time and title details with OLED pixel shift</string>
+    <string name="ambient_mode_preview_button">Preview Ambient Mode</string>
+    <string name="ambient_mode_dismiss_hint">Press any button to return</string>
+
+    <!-- Stage 2D: Playback Engine & Intro Skipping -->
+    <string name="convert_dv_profile_7_to_81_title">Convert Dolby Vision Profile 7 to 8.1</string>
+    <string name="convert_dv_profile_7_to_81_sub">Converts Dolby Vision Profile 7 (MEL/FEL) to single-layer Profile 8.1 on the fly with safe fallback to HDR10/SDR on unsupported displays.</string>
+    <string name="playback_buffer_preset_title">Playback Buffer Preset</string>
+    <string name="playback_buffer_preset_low_ram">Low RAM / 32-Bit Safe</string>
+    <string name="playback_buffer_preset_low_ram_sub">Ultra-safe 32MB buffer designed for 1.5GB–2GB RAM 32-bit ARM TVs.</string>
+    <string name="playback_buffer_preset_balanced">Balanced</string>
+    <string name="playback_buffer_preset_balanced_sub">Default 64MB buffer for smooth playback and minimal memory footprint.</string>
+    <string name="playback_buffer_preset_high_bitrate">High Bitrate</string>
+    <string name="playback_buffer_preset_high_bitrate_sub">128MB buffer for 4K REMUX and high-bitrate streaming.</string>
+    <string name="playback_buffer_preset_custom">Custom</string>
+    <string name="playback_buffer_preset_custom_sub">Manually configure buffer durations and memory budgets.</string>
+    <string name="playback_release_hw_decoder_background_title">Release Hardware Decoder When Backgrounded</string>
+    <string name="playback_release_hw_decoder_background_sub">Immediately releases MediaCodec and GPU video surfaces when backgrounded to prevent low-RAM crashes, restoring position on resume.</string>
+    <string name="skip_intro_mode_title">Skip Intro &amp; Ending Mode</string>
+    <string name="skip_intro_mode_auto">Auto-Skip</string>
+    <string name="skip_intro_mode_auto_sub">Automatically skip intros, anime openings, and endings as soon as they appear.</string>
+    <string name="skip_intro_mode_button">Show Skip Button</string>
+    <string name="skip_intro_mode_button_sub">Display a focusable Glass button on screen allowing you to skip with the D-Pad.</string>
+    <string name="skip_intro_mode_off">Off</string>
+    <string name="skip_intro_mode_off_sub">Disable intro and ending skipping.</string>
 </resources>

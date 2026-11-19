@@ -80,6 +80,12 @@ internal fun LayoutContinueWatchingSection(
             onToggle = { onEvent(LayoutSettingsEvent.SetUseEpisodeThumbnailsInCw(!uiState.useEpisodeThumbnailsInCw)) }
         )
         SettingsToggleRow(
+            title = stringResource(R.string.layout_blur_unwatched_cw),
+            subtitle = stringResource(R.string.layout_blur_unwatched_cw_sub),
+            checked = uiState.blurContinueWatchingNextUp,
+            onToggle = { onEvent(LayoutSettingsEvent.SetBlurContinueWatchingNextUp(!uiState.blurContinueWatchingNextUp)) }
+        )
+        SettingsToggleRow(
             title = stringResource(R.string.layout_next_up_furthest_episode),
             subtitle = stringResource(R.string.layout_next_up_furthest_episode_sub),
             checked = uiState.nextUpFromFurthestEpisode,

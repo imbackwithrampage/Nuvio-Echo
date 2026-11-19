@@ -98,6 +98,7 @@ class MetaDetailsViewModel @Inject constructor(
     private val simklRelatedService: com.nuvio.tv.data.simkl.SimklRelatedService,
     private val simklAuthRepository: com.nuvio.tv.data.simkl.SimklAuthRepository,
     private val layoutPreferenceDataStore: LayoutPreferenceDataStore,
+    private val multiProviderRatingsAggregator: com.nuvio.tv.core.ratings.MultiProviderRatingsAggregator,
     private val episodeShuffleStore: com.nuvio.tv.data.local.EpisodeShuffleStore,
     private val episodeShuffle: com.nuvio.tv.domain.model.EpisodeShuffle,
     private val playerSettingsDataStore: PlayerSettingsDataStore,
@@ -173,6 +174,12 @@ class MetaDetailsViewModel @Inject constructor(
         observeEpisodeOptionsOverlayStyle()
         observeOverallRatingsVisibility()
         observeDetailImdbRatingsVisibility()
+        viewModelScope.launch {
+            layoutPreferenceDataStore.multiProviderRatingsEnabled
+                .collect { enabled ->
+                    _uiState.update { it.copy(multiProviderRatingsEnabled = enabled) }
+                }
+        }
         viewModelScope.launch {
             layoutPreferenceDataStore.posterCardCornerRadiusDp
                 .collect { _posterCardCornerRadiusDp.value = it }
@@ -1408,19 +1415,22 @@ class MetaDetailsViewModel @Inject constructor(
     private suspend fun loadMDBListRatings(meta: Meta) {
         val settings = mdbListSettingsDataStore.settings.first()
         val isMdbListActive = mdbListRepository.isAvailable(settings)
-        val ratingsResult = runCatching {
-            mdbListRepository.getRatingsForMeta(
-                meta = meta,
-                fallbackItemId = itemId,
-                fallbackItemType = itemType
+        val ratings = runCatching {
+            multiProviderRatingsAggregator.getRatings(
+                itemId = itemId,
+                itemType = itemType,
+                imdbId = meta.imdbId,
+                fallbackImdbRating = meta.imdbRating?.toDouble(),
+                fallbackTmdbRating = _uiState.value.tmdbRating?.toDouble(),
+                meta = meta
             )
         }.getOrNull()
 
         _uiState.update { state ->
             state.copy(
-                mdbListRatings = ratingsResult?.ratings,
+                mdbListRatings = ratings,
                 mdbListRatingOrder = settings.enabledRatingOrder(),
-                isMdbListRatingsActive = isMdbListActive
+                isMdbListRatingsActive = isMdbListActive || ratings != null
             )
         }
     }
@@ -2874,7 +2884,13 @@ class MetaDetailsViewModel @Inject constructor(
     }
 
     private fun retrySharedTrailer() {
-        _uiState.value.selectedSharedTrailer?.let(::handleSharedTrailerSelected)
+        val selected = _uiState.value.selectedSharedTrailer ?: return
+        viewModelScope.launch {
+            selected.ytId?.let { ytId ->
+                trailerService.invalidateTrailer(ytId)
+            }
+            handleSharedTrailerSelected(selected)
+        }
     }
 
     private fun dismissSharedTrailerOverlay() {

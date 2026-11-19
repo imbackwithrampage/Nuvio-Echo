@@ -18,6 +18,8 @@ import com.nuvio.tv.data.local.StreamAutoPlaySource
 import com.nuvio.tv.data.local.AudioOutputChannels
 import com.nuvio.tv.data.local.AutoSkipSegmentType
 import com.nuvio.tv.data.local.MpvHardwareDecodeMode
+import com.nuvio.tv.data.local.PlaybackBufferPreset
+import com.nuvio.tv.data.local.SkipIntroMode
 import com.nuvio.tv.data.local.SubtitleOrganizationMode
 import com.nuvio.tv.data.local.TrailerSettings
 import com.nuvio.tv.data.local.TrailerSettingsDataStore
@@ -134,6 +136,14 @@ class PlaybackSettingsViewModel @Inject constructor(
         playerSettingsDataStore.setMaintainOriginalAudioOnDownmix(enabled)
     }
 
+    suspend fun setNightModeEnabled(enabled: Boolean) {
+        playerSettingsDataStore.setNightModeEnabled(enabled)
+    }
+
+    suspend fun setLfeMixLevel(level: Float) {
+        playerSettingsDataStore.setLfeMixLevel(level)
+    }
+
     suspend fun setTunnelingEnabled(enabled: Boolean) {
         playerSettingsDataStore.setTunnelingEnabled(enabled)
     }
@@ -172,6 +182,14 @@ class PlaybackSettingsViewModel @Inject constructor(
 
     suspend fun setOsdClockEnabled(enabled: Boolean) {
         playerSettingsDataStore.setOsdClockEnabled(enabled)
+    }
+
+    suspend fun setShowStreamCodecBadges(enabled: Boolean) {
+        playerSettingsDataStore.setShowStreamCodecBadges(enabled)
+    }
+
+    suspend fun setCustomBadgePackPath(path: String?) {
+        playerSettingsDataStore.setCustomBadgePackPath(path)
     }
 
     suspend fun setTransparentLetterbox(enabled: Boolean) {
@@ -215,6 +233,22 @@ class PlaybackSettingsViewModel @Inject constructor(
         playerSettingsDataStore.setMpvHi10pGnextSoftwareFallbackEnabled(enabled)
     }
 
+
+    suspend fun setConvertDvProfile7To81(enabled: Boolean) {
+        playerSettingsDataStore.setConvertDvProfile7To81(enabled)
+    }
+
+    suspend fun setBufferPreset(preset: PlaybackBufferPreset) {
+        playerSettingsDataStore.setBufferPreset(preset)
+    }
+
+    suspend fun setReleaseHardwareDecoderWhenBackgrounded(enabled: Boolean) {
+        playerSettingsDataStore.setReleaseHardwareDecoderWhenBackgrounded(enabled)
+    }
+
+    suspend fun setSkipIntroMode(mode: SkipIntroMode) {
+        playerSettingsDataStore.setSkipIntroMode(mode)
+    }
 
     suspend fun setDv5ToDv81Enabled(enabled: Boolean) {
         playerSettingsDataStore.setDv5ToDv81Enabled(enabled)

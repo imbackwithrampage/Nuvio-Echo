@@ -491,7 +491,7 @@ internal fun PlayerRuntimeController.showStreamSourceIndicator(stream: Stream) {
 }
 
 internal fun PlayerRuntimeController.updateActiveSkipInterval(positionMs: Long) {
-    if (skipIntervals.isEmpty()) {
+    if (skipIntervals.isEmpty() || skipIntroMode == com.nuvio.tv.data.local.SkipIntroMode.OFF) {
         if (_uiState.value.activeSkipInterval != null) {
             _uiState.update { it.copy(activeSkipInterval = null, skipIntervalDismissed = false) }
         }
@@ -518,9 +518,13 @@ internal fun PlayerRuntimeController.updateActiveSkipInterval(positionMs: Long) 
         }
         val segmentType = AutoSkipSegmentType.fromSkipIntervalType(active.type)
         val activeKey = active.autoSkipKey()
+        val shouldAutoSkip = when (skipIntroMode) {
+            com.nuvio.tv.data.local.SkipIntroMode.AUTO_SKIP -> true
+            com.nuvio.tv.data.local.SkipIntroMode.SHOW_BUTTON -> segmentType != null && segmentType in autoSkipSegmentTypes
+            com.nuvio.tv.data.local.SkipIntroMode.OFF -> false
+        }
         if (
-            segmentType != null &&
-            segmentType in autoSkipSegmentTypes &&
+            shouldAutoSkip &&
             activeKey !in autoSkippedIntervalKeys
         ) {
             autoSkippedIntervalKeys.add(activeKey)

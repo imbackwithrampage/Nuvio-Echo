@@ -151,6 +151,12 @@ internal fun HomeViewModel.observeLayoutPreferencesPipeline() {
                 }
             }
     }
+
+    viewModelScope.launch {
+        layoutPreferenceDataStore.multiProviderRatingsEnabled.collectLatest { enabled ->
+            _uiState.update { it.copy(multiProviderRatingsEnabled = enabled) }
+        }
+    }
 }
 
 @OptIn(FlowPreview::class)

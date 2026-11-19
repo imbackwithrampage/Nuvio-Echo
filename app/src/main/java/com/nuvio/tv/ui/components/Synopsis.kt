@@ -127,19 +127,16 @@ fun SynopsisDescription(
             }
         )
     ) {
-        Text(
+        AutoScrollingHeroDescription(
             text = description,
+            itemId = description.take(50),
             style = MaterialTheme.typography.bodyMedium.copy(
                 textDirection = description.contentTextDirection()
             ),
             color = NuvioTheme.colors.TextPrimary,
             maxLines = maxLines,
-            overflow = TextOverflow.Ellipsis,
-            onTextLayout = { result ->
-                if (result.hasVisualOverflow != isTruncated) {
-                    isTruncated = result.hasVisualOverflow
-                }
-            }
+            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
+            lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
         )
         if (isTruncated) {
             Text(

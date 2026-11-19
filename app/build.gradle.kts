@@ -87,14 +87,26 @@ val useLocalFfmpegDecoder = truthy(
         ?: env("USE_LOCAL_FFMPEG_DECODER")
         ?: localProperties.getProperty("USE_LOCAL_FFMPEG_DECODER")
 )
-val releaseStoreFilePath = env("NUVIO_RELEASE_STORE_FILE")
+val releaseStoreFilePath = env("KEYSTORE_FILE")
+    ?: env("NUVIO_RELEASE_STORE_FILE")
+    ?: providers.gradleProperty("KEYSTORE_FILE").orNull
+    ?: localProperties.getProperty("KEYSTORE_FILE")
     ?: localProperties.getProperty("NUVIO_RELEASE_STORE_FILE")
-val releaseKeyAliasValue = env("NUVIO_RELEASE_KEY_ALIAS")
-    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_ALIAS", "nuviotv")
-val releaseKeyPasswordValue = env("NUVIO_RELEASE_KEY_PASSWORD")
-    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_PASSWORD", "815787")
-val releaseStorePasswordValue = env("NUVIO_RELEASE_STORE_PASSWORD")
-    ?: localProperties.getProperty("NUVIO_RELEASE_STORE_PASSWORD", "815787")
+val releaseKeyAliasValue = env("KEY_ALIAS")
+    ?: env("NUVIO_RELEASE_KEY_ALIAS")
+    ?: providers.gradleProperty("KEY_ALIAS").orNull
+    ?: localProperties.getProperty("KEY_ALIAS")
+    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_ALIAS", "nuvio")
+val releaseKeyPasswordValue = env("KEY_PASSWORD")
+    ?: env("NUVIO_RELEASE_KEY_PASSWORD")
+    ?: providers.gradleProperty("KEY_PASSWORD").orNull
+    ?: localProperties.getProperty("KEY_PASSWORD")
+    ?: localProperties.getProperty("NUVIO_RELEASE_KEY_PASSWORD", "NuvioEcho2026!")
+val releaseStorePasswordValue = env("KEYSTORE_PASSWORD")
+    ?: env("NUVIO_RELEASE_STORE_PASSWORD")
+    ?: providers.gradleProperty("KEYSTORE_PASSWORD").orNull
+    ?: localProperties.getProperty("KEYSTORE_PASSWORD")
+    ?: localProperties.getProperty("NUVIO_RELEASE_STORE_PASSWORD", "NuvioEcho2026!")
 
 android {
     namespace = "com.nuvio.tv"
@@ -108,6 +120,8 @@ android {
         targetSdk = 36
         versionCode = 1069
         versionName = "1.1.0-beta.6"
+
+        // ABI packaging is governed by splits { abi { ... } } below
 
         buildConfigField("String", "PARENTAL_GUIDE_API_URL", "\"${localProperties.getProperty("PARENTAL_GUIDE_API_URL", "")}\"")
         buildConfigField("String", "INTRODB_API_URL", "\"${localProperties.getProperty("INTRODB_API_URL", "").ifBlank { "https://api.introdb.app/" }}\"")
@@ -195,8 +209,18 @@ android {
         create("release") {
             keyAlias = releaseKeyAliasValue
             keyPassword = releaseKeyPasswordValue
-            storeFile = releaseStoreFilePath?.let(::file) ?: file("../nuviotv.jks")
             storePassword = releaseStorePasswordValue
+            val candidateFiles = sequenceOf(
+                releaseStoreFilePath?.let { file(it) },
+                releaseStoreFilePath?.let { rootProject.file(it) },
+                rootProject.file("nuvio-echo.keystore"),
+                file("release.keystore"),
+                rootProject.file("release.keystore"),
+                file("../nuvio-echo.keystore"),
+                file("../nuviotv.jks")
+            ).filterNotNull()
+            val existingStore = candidateFiles.firstOrNull { it.exists() }
+            storeFile = existingStore ?: file("release.keystore")
         }
     }
 
@@ -236,7 +260,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = if (useDebugReleaseSigning) {
+            signingConfig = if (useDebugReleaseSigning || signingConfigs.getByName("release").storeFile?.exists() != true) {
                 signingConfigs.getByName("debug")
             } else {
                 signingConfigs.getByName("release")
@@ -296,10 +320,10 @@ android {
 
     splits {
         abi {
-            isEnable = !buildingAppBundle
+            isEnable = true
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-            isUniversalApk = true
+            include("armeabi-v7a")
+            isUniversalApk = false
         }
     }
 

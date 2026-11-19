@@ -10,6 +10,7 @@ import com.nuvio.tv.data.local.AudioOutputChannels
 import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.data.local.PlayerSettings
 import com.nuvio.tv.data.local.displayName
+import com.nuvio.tv.ui.screens.player.PlayerAudioFilterPolicy
 
 @Composable
 internal fun PlaybackAudioSection(
@@ -53,6 +54,22 @@ internal fun PlaybackAudioSection(
         checked = settings.rememberAudioDelayPerDevice,
         onToggle = { onUpdate { setRememberAudioDelayPerDevice(!settings.rememberAudioDelayPerDevice) } },
         enabled = enabled
+    )
+
+    SettingsToggleRow(
+        title = stringResource(R.string.audio_night_mode_title),
+        subtitle = stringResource(R.string.audio_night_mode_subtitle),
+        checked = settings.nightModeEnabled,
+        onToggle = { onUpdate { setNightModeEnabled(!settings.nightModeEnabled) } },
+        enabled = enabled
+    )
+
+    SettingsActionRow(
+        title = stringResource(R.string.audio_lfe_level_title),
+        subtitle = stringResource(R.string.audio_lfe_level_subtitle),
+        value = PlayerAudioFilterPolicy.formatLfeMixLevel(settings.lfeMixLevel),
+        enabled = enabled,
+        onClick = { onOpenDialog(PlaybackDialog.LFE_MIX_LEVEL) }
     )
 
     if (!isExoEngine) return
@@ -174,6 +191,14 @@ internal fun AudioSettingsDialogs(
             },
             onDismiss = onDismiss
         )
+        PlaybackDialog.LFE_MIX_LEVEL -> LfeMixLevelDialog(
+            selectedLevel = settings.lfeMixLevel,
+            onLevelSelected = { level ->
+                onUpdate { setLfeMixLevel(level) }
+                onDismiss()
+            },
+            onDismiss = onDismiss
+        )
         else -> Unit
     }
 }
@@ -254,5 +279,35 @@ internal fun DecoderPriorityDialog(
         onDismiss = onDismiss,
         width = 420.dp,
         maxHeight = 320.dp
+    )
+}
+
+@Composable
+private fun LfeMixLevelDialog(
+    selectedLevel: Float,
+    onLevelSelected: (Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val levels = listOf(0.0f, 0.2f, 0.4f, 0.6f, 0.8f, 1.0f, 1.2f, 1.4f, 1.6f, 1.8f, 2.0f)
+    val options = levels.map { level ->
+        val label = when {
+            level <= 0.001f -> stringResource(R.string.audio_lfe_level_off)
+            kotlin.math.abs(level - 1.0f) <= 0.01f -> "1.0 (Standard)"
+            kotlin.math.abs(level - 2.0f) <= 0.01f -> "2.0 (Max)"
+            else -> String.format(java.util.Locale.US, "%.1f", level)
+        }
+        SettingsPickerOption(level, label)
+    }
+    val closest = levels.minByOrNull { kotlin.math.abs(it - selectedLevel) } ?: 0.0f
+
+    SettingsSingleChoiceDialog(
+        title = stringResource(R.string.audio_lfe_level_title),
+        subtitle = stringResource(R.string.audio_lfe_level_subtitle),
+        options = options,
+        selectedValue = closest,
+        onOptionSelected = onLevelSelected,
+        onDismiss = onDismiss,
+        width = 420.dp,
+        maxHeight = 360.dp
     )
 }

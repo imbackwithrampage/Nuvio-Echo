@@ -19,6 +19,8 @@ local.properties
 local.dev.properties
 *.jks
 *.keystore
+KEYSTORE_BASE64_COPY.txt
+release.keystore
 sentry.properties
 .mcp.json
 CLAUDE.md

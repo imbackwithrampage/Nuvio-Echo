@@ -75,6 +75,8 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.nuvio.tv.core.image.customPosterFallback
 import coil3.request.crossfade
+import coil3.request.transformations
+import com.nuvio.tv.ui.util.BlurTransformation
 import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.derivedStateOf
 import com.nuvio.tv.R
@@ -192,7 +194,8 @@ internal fun Artwork(
     modifier: Modifier = Modifier,
     fallbackTitle: String? = null,
     /** The art a custom poster replaced, shown if the custom one fails to load. */
-    fallbackUrl: String? = null
+    fallbackUrl: String? = null,
+    blur: Boolean = false
 ) {
     val shown = LocalArtworkShown.current
     if (url.isNullOrBlank()) {
@@ -206,8 +209,17 @@ internal fun Artwork(
     }
     val context = LocalContext.current
     // Built once per image, not on every recomposition of the card.
-    val request = remember(url, fallbackUrl) {
-        ImageRequest.Builder(context).data(url).customPosterFallback(url, fallbackUrl).crossfade(200).build()
+    val request = remember(url, fallbackUrl, blur) {
+        ImageRequest.Builder(context)
+            .data(url)
+            .customPosterFallback(url, fallbackUrl)
+            .apply {
+                if (blur) {
+                    transformations(BlurTransformation(radius = 25, scale = 0.25f))
+                }
+            }
+            .crossfade(200)
+            .build()
     }
     // Tells the card when its picture is up (the card's depth waits for it). A card showing two pictures (a poster
     // under its backdrop) counts as in once the first is.
@@ -215,6 +227,7 @@ internal fun Artwork(
         model = request,
         contentDescription = null,
         contentScale = ContentScale.Crop,
+        alignment = com.nuvio.tv.ui.components.rememberSmartBackdropAlignment(url),
         onSuccess = { shown?.value = true },
         onError = { shown?.value = true },
         modifier = modifier
@@ -291,11 +304,12 @@ internal fun ContinueWatchingCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isBlurred: Boolean = false
 ) {
     val hasProgress = progress != null && progress > 0f
     NewLookCard(dims.cwWidth, dims.cwHeight, onClick, onLongClick, onFocusChanged, modifier, depth = CardDepthSurface.CONTINUE_WATCHING) {
-        Artwork(image, Modifier.fillMaxSize(), fallbackTitle = title)
+        Artwork(image, Modifier.fillMaxSize(), fallbackTitle = title, blur = isBlurred)
         Box(modifier = Modifier.fillMaxSize().bottomShade())
         Column(
             modifier = Modifier

@@ -114,7 +114,9 @@ fun TrailerPlayer(
      * sampled for letterboxing, so it shows at once and the caller covers it with its backdrop until
      * [onFirstFrameRendered]. Corners still follow the parent's clip, as the hole is drawn through it.
      */
-    surfaceView: Boolean = false
+    surfaceView: Boolean = false,
+    /** Invoked if the stream returns HTTP 403 or 410 indicating expired signature, to trigger re-extraction. */
+    onExpiredSignatureError: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -127,6 +129,7 @@ fun TrailerPlayer(
     val currentOnProgressChanged by rememberUpdatedState(onProgressChanged)
     val currentOnRemoteKey by rememberUpdatedState(onRemoteKey)
     val currentMuted by rememberUpdatedState(muted)
+    val currentOnExpiredSignatureError by rememberUpdatedState(onExpiredSignatureError)
     val zoomScale = if (cropToFill) overscanZoom.coerceAtLeast(1f) else 1f
     var hasRenderedFirstFrame by remember(trailerUrl) { mutableStateOf(false) }
     val playerAlphaState = animateFloatAsState(
@@ -265,6 +268,10 @@ fun TrailerPlayer(
             // Without this a trailer that fails just never shows; the code says why (no URL is logged).
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 Log.w(TAG, "Trailer playback failed: ${error.errorCodeName} (videoLayer=$surfaceView, muted=$currentMuted)")
+                if (isHttpExpiredOrForbidden(error)) {
+                    Log.w(TAG, "Detected HTTP 403/410 expired signature error for trailer, triggering re-extraction")
+                    currentOnExpiredSignatureError?.invoke()
+                }
             }
         }
         val observer = LifecycleEventObserver { _, event ->
@@ -360,4 +367,19 @@ fun TrailerPlayer(
             }
         }
     }
+}
+
+internal fun isHttpExpiredOrForbidden(error: androidx.media3.common.PlaybackException): Boolean {
+    var cause: Throwable? = error
+    while (cause != null) {
+        if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+            if (cause.responseCode == 403 || cause.responseCode == 410) return true
+        }
+        val msg = cause.message
+        if (msg != null && (msg.contains("403") || msg.contains("410"))) {
+            return true
+        }
+        cause = cause.cause
+    }
+    return false
 }

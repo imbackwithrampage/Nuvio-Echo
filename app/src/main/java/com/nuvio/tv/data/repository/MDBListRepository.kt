@@ -5,6 +5,7 @@ import com.nuvio.tv.data.local.MDBListSettingsDataStore
 import com.nuvio.tv.data.mdblist.MdbListRatingsClient
 import com.nuvio.tv.data.mdblist.MdbListRatingsDiskCache
 import com.nuvio.tv.data.mdblist.MdbListRatingsLoader
+import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.domain.model.MDBListRatings
 import com.nuvio.tv.domain.model.MDBListRatingsResult
 import com.nuvio.tv.domain.model.MDBListSettings
@@ -101,6 +102,36 @@ class MDBListRepository internal constructor(
         }?.takeUnless { it.isEmpty() } ?: return null
 
         return MDBListRatingsResult(ratings, hasImdbRating = ratings.imdb != null)
+    }
+
+    suspend fun getRatingsForId(
+        itemId: String,
+        itemType: String,
+        imdbId: String? = null
+    ): MDBListRatingsResult? {
+        val meta = Meta(
+            id = itemId,
+            type = if (normalizeMediaType(itemType) == "show") ContentType.SERIES else ContentType.MOVIE,
+            name = itemId,
+            poster = null,
+            posterShape = com.nuvio.tv.domain.model.PosterShape.POSTER,
+            background = null,
+            logo = null,
+            description = null,
+            releaseInfo = null,
+            imdbRating = null,
+            genres = emptyList(),
+            runtime = null,
+            director = emptyList(),
+            cast = emptyList(),
+            videos = emptyList(),
+            country = null,
+            awards = null,
+            language = null,
+            links = emptyList(),
+            imdbId = imdbId
+        )
+        return getRatingsForMeta(meta, itemId, itemType)
     }
 
     private fun MDBListSettings.hasEnabledProviders(): Boolean =

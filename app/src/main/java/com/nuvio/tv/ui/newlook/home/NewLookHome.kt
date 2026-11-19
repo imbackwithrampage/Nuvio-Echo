@@ -517,7 +517,15 @@ internal fun NewLookHomeContent(
                     ratingIsImdb = item.id.startsWith("tt") || item.imdbId != null,
                     description = item.description ?: d?.overview,
                     tag = d?.tag,
-                    tagSeason = d?.tagSeason
+                    tagSeason = d?.tagSeason,
+                    multiRatings = d?.multiRatings ?: (
+                        if (item.imdbRating != null || d?.rating != null) {
+                            com.nuvio.tv.domain.model.MDBListRatings(
+                                imdb = item.imdbRating?.toDouble(),
+                                tmdb = d?.rating
+                            )
+                        } else null
+                    )
                 )
             }
         }
@@ -1043,7 +1051,8 @@ internal fun NewLookHomeContent(
                             { modifier -> chrome.TopBar(onDown = { focusHero(heroButton) }, modifier = modifier) }
                         } else null,
                         topBarVisible = !hideMenu || chrome?.topBarFocused == true,
-                        edgeToEdge = settings.heroEdgeToEdge
+                        edgeToEdge = settings.heroEdgeToEdge,
+                        showMultiRatings = uiState.multiProviderRatingsEnabled
                     )
                 }
                 itemsIndexed(rows, key = { _, row -> row.key }, contentType = { _, row -> row.kind }) { rowIndex, row ->
@@ -1066,6 +1075,7 @@ internal fun NewLookHomeContent(
                         muted = muted,
                         isWatched = isCatalogItemWatched,
                         onTrailerEnded = onHighlightTrailerEnded,
+                        blurUnwatched = uiState.blurUnwatchedEpisodes,
                         onCardFocused = { index, item, focused ->
                             if (focused && row.onlyPlaceholders) {
                                 // A skeleton: hold the place, and load this row first.
@@ -1313,7 +1323,8 @@ private fun HeroBlock(
     onMoreInfo: () -> Unit,
     topBar: (@Composable (Modifier) -> Unit)?,
     topBarVisible: Boolean,
-    edgeToEdge: Boolean = false
+    edgeToEdge: Boolean = false,
+    showMultiRatings: Boolean = true
 ) {
     val underBar = menuOnTop && !hideMenu
     val top = if (underBar) NewLookLayout.WindowTopUnderBar else NewLookLayout.WindowTop
@@ -1384,7 +1395,8 @@ private fun HeroBlock(
                 textStart = if (edgeToEdge) contentStart else 24.dp,
                 textBottom = if (edgeToEdge) {
                     NewLookLayout.EdgeHeroHeight - NewLookLayout.RowsTop + NewLookLayout.EdgeHeroTextAboveRows
-                } else 20.dp
+                } else 20.dp,
+                showMultiRatings = showMultiRatings
             )
         }
         // After the window: an edge-to-edge hero runs under the bar.
@@ -1425,7 +1437,8 @@ private fun NewLookRowView(
     onClick: (ModernCarouselItem) -> Unit,
     onLongClick: (ModernCarouselItem) -> Unit,
     /** The poster in this row that has opened out, if any. */
-    openItemKey: String?
+    openItemKey: String?,
+    blurUnwatched: Boolean = false
 ) {
     val density = LocalDensity.current
     val rowActive = focusedItemKey != null
@@ -1539,7 +1552,8 @@ private fun NewLookRowView(
                         onClick = { onClick(item) },
                         onLongClick = { onLongClick(item) },
                         modifier = modifier,
-                        open = item.key == focusedItemKey && item.key == openItemKey
+                        open = item.key == focusedItemKey && item.key == openItemKey,
+                        blurUnwatched = blurUnwatched
                     )
                 }
             }
@@ -1580,7 +1594,8 @@ private fun RowCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier,
-    open: Boolean
+    open: Boolean,
+    blurUnwatched: Boolean = false
 ) {
     val preview = item.heroPreview
     val backdrop = preview.backdrop ?: details?.backdrop ?: item.imageUrl
@@ -1605,7 +1620,8 @@ private fun RowCard(
                     ratingIsImdb = meta?.id?.startsWith("tt") == true || meta?.imdbId != null,
                     description = preview.description ?: meta?.description ?: details?.overview,
                     tag = details?.tag,
-                    tagSeason = details?.tagSeason
+                    tagSeason = details?.tagSeason,
+                    multiRatings = details?.multiRatings
                 )
             }
             GrandCard(
@@ -1626,6 +1642,12 @@ private fun RowCard(
         row.kind == RowKind.WIDE -> {
             val payload = item.payload as? ModernPayload.ContinueWatching
             val cw = payload?.item
+            val isUnwatched = when (cw) {
+                is ContinueWatchingItem.NextUp -> true
+                is ContinueWatchingItem.InProgress -> (cw.progress.progressPercentage <= 0f) || (cw.progress.position <= 0L)
+                null -> false
+            }
+            val shouldBlur = blurUnwatched && isUnwatched
             val image = when (cw) {
                 is ContinueWatchingItem.InProgress -> cw.episodeThumbnail ?: cw.progress.backdrop ?: cw.progress.poster
                 is ContinueWatchingItem.NextUp -> cw.info.thumbnail ?: cw.info.backdrop ?: cw.info.poster
@@ -1647,7 +1669,8 @@ private fun RowCard(
                 onClick = onClick,
                 onLongClick = onLongClick,
                 onFocusChanged = onFocusChanged,
-                modifier = modifier
+                modifier = modifier,
+                isBlurred = shouldBlur
             )
         }
         row.kind == RowKind.POSTER -> PosterCard(

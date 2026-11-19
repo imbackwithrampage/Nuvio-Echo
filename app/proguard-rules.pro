@@ -180,3 +180,43 @@
     public static int d(...);
     public static int v(...);
 }
+
+# ── ARM32 TV Release & Reflection Keep Rules ──────────────────────────────────
+# Retrofit / Moshi / Gson / Kotlinx Serialization models
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+    @kotlinx.serialization.SerialName <fields>;
+    @com.squareup.moshi.Json <fields>;
+}
+
+# Keep all project DTOs, models, and API responses
+-keep class com.nuvio.tv.domain.model.** { *; }
+-keep class com.nuvio.tv.data.model.** { *; }
+-keep class com.nuvio.tv.data.remote.** { *; }
+-keep class com.nuvio.tv.data.repository.** { *; }
+-keep class com.nuvio.tv.data.trailer.** { *; }
+-keep class com.nuvio.tv.core.ratings.** { *; }
+-keep class com.nuvio.tv.core.player.badges.** { *; }
+-keep class com.nuvio.tv.core.ambient.** { *; }
+
+# DataStore serializers and preferences
+-keep class androidx.datastore.** { *; }
+-keep class androidx.datastore.preferences.** { *; }
+-keep class androidx.datastore.preferences.core.** { *; }
+-keepclassmembers class * implements androidx.datastore.core.Serializer { *; }
+-keep class com.nuvio.tv.data.local.** { *; }
+
+# libmpv / libdovi JNI callbacks and native symbols
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-keep class is.xyz.mpv.** { *; }
+-keepclassmembers class is.xyz.mpv.** { *; }
+-keep class com.nuvio.tv.core.player.dovi.** { *; }
+-keep class com.nuvio.tv.ui.screens.player.DolbyVisionConversionPolicy { *; }
+-keep class com.nuvio.tv.ui.screens.player.NuvioMpvSurfaceView** { *; }
+
+# Addon JSON parsers and reflection
+-keep class com.nuvio.tv.core.addon.** { *; }
+-keep class com.nuvio.tv.core.streams.** { *; }
+-keep class com.nuvio.tv.core.plugin.** { *; }

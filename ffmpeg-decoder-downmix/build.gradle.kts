@@ -27,6 +27,11 @@ android {
     defaultConfig {
         minSdk = 24
 
+        ndk {
+            abiFilters.clear()
+            abiFilters.add("armeabi-v7a")
+        }
+
         externalNativeBuild {
             cmake {
                 if (!ffmpegSourceDir.isNullOrBlank() && !ffmpegBuildDir.isNullOrBlank()) {

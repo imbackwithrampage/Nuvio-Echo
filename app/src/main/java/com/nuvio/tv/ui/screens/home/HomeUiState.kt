@@ -23,6 +23,7 @@ data class HomeUiState(
     val installedAddonsCount: Int = 0,
     val modernLandscapePostersEnabled: Boolean = false,
     val homeImdbRatingsVisibility: HomeImdbRatingsVisibility = HomeImdbRatingsVisibility.SHOW_ALL,
+    val multiProviderRatingsEnabled: Boolean = true,
     val heroItems: List<MetaPreview> = emptyList(),
     val heroCatalogKeys: List<String> = emptyList(),
     val heroSectionEnabled: Boolean = true,

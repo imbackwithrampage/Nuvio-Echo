@@ -1,6 +1,11 @@
 package com.nuvio.tv.ui.screens.settings
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.nuvio.tv.R
@@ -8,6 +13,7 @@ import com.nuvio.tv.data.local.AutoSkipSegmentType
 import com.nuvio.tv.data.local.InternalPlayerEngine
 import com.nuvio.tv.data.local.PlayerPreference
 import com.nuvio.tv.data.local.PlayerSettings
+import com.nuvio.tv.data.local.SkipIntroMode
 import com.nuvio.tv.data.local.SkipTimeFileCheck
 
 @Composable
@@ -62,7 +68,50 @@ internal fun PlaybackSkipSegmentsSection(
     onUpdate: PlaybackSettingsUpdate
 ) {
     val internalPlayer = settings.playerPreference != PlayerPreference.EXTERNAL
-    val autoSkipEnabled = internalPlayer && settings.skipIntroEnabled
+    val autoSkipEnabled = internalPlayer && settings.skipIntroEnabled && settings.skipIntroMode != SkipIntroMode.OFF
+    var showSkipModeDialog by remember { mutableStateOf(false) }
+
+    SettingsActionRow(
+        title = stringResource(R.string.skip_intro_mode_title),
+        subtitle = null,
+        value = when (settings.skipIntroMode) {
+            SkipIntroMode.AUTO_SKIP -> stringResource(R.string.skip_intro_mode_auto)
+            SkipIntroMode.SHOW_BUTTON -> stringResource(R.string.skip_intro_mode_button)
+            SkipIntroMode.OFF -> stringResource(R.string.skip_intro_mode_off)
+        },
+        enabled = internalPlayer,
+        onClick = { showSkipModeDialog = true }
+    )
+
+    if (showSkipModeDialog) {
+        val options = listOf(
+            SettingsPickerOption(
+                SkipIntroMode.SHOW_BUTTON,
+                stringResource(R.string.skip_intro_mode_button),
+                stringResource(R.string.skip_intro_mode_button_sub)
+            ),
+            SettingsPickerOption(
+                SkipIntroMode.AUTO_SKIP,
+                stringResource(R.string.skip_intro_mode_auto),
+                stringResource(R.string.skip_intro_mode_auto_sub)
+            ),
+            SettingsPickerOption(
+                SkipIntroMode.OFF,
+                stringResource(R.string.skip_intro_mode_off),
+                stringResource(R.string.skip_intro_mode_off_sub)
+            )
+        )
+        SettingsSingleChoiceDialog(
+            title = stringResource(R.string.skip_intro_mode_title),
+            options = options,
+            selectedValue = settings.skipIntroMode,
+            onOptionSelected = { mode ->
+                onUpdate { setSkipIntroMode(mode) }
+                showSkipModeDialog = false
+            },
+            onDismiss = { showSkipModeDialog = false }
+        )
+    }
 
     SettingsToggleRow(
         title = stringResource(R.string.playback_skip_intro),
@@ -159,6 +208,7 @@ internal fun PlaybackPlayerInterfaceSection(
     onUpdate: PlaybackSettingsUpdate
 ) {
     val internalPlayer = settings.playerPreference != PlayerPreference.EXTERNAL
+    var showBadgePackDialog by rememberSaveable { mutableStateOf(false) }
 
     SettingsToggleRow(
         title = stringResource(R.string.playback_loading_overlay),
@@ -187,7 +237,36 @@ internal fun PlaybackPlayerInterfaceSection(
         onToggle = { onUpdate { setOsdClockEnabled(!settings.osdClockEnabled) } },
         enabled = internalPlayer
     )
+    SettingsToggleRow(
+        title = stringResource(R.string.playback_show_codec_badges),
+        subtitle = stringResource(R.string.playback_show_codec_badges_sub),
+        checked = settings.showStreamCodecBadges,
+        onToggle = { onUpdate { setShowStreamCodecBadges(!settings.showStreamCodecBadges) } },
+        enabled = internalPlayer
+    )
+    if (settings.showStreamCodecBadges) {
+        val currentPackName = settings.customBadgePackPath?.let {
+            java.io.File(it).name.replace("_", " ").replaceFirstChar { c -> c.titlecase() }
+        } ?: stringResource(R.string.playback_badge_pack_default)
+        SettingsActionRow(
+            title = stringResource(R.string.playback_custom_badge_pack),
+            subtitle = stringResource(R.string.playback_custom_badge_pack_sub),
+            value = currentPackName,
+            onClick = { showBadgePackDialog = true },
+            enabled = internalPlayer
+        )
+    }
     PlayerExtrasRows()
+
+    if (showBadgePackDialog) {
+        PlayerBadgePackDialog(
+            currentPackPath = settings.customBadgePackPath,
+            onPackSelected = { path ->
+                onUpdate { setCustomBadgePackPath(path) }
+            },
+            onDismiss = { showBadgePackDialog = false }
+        )
+    }
 }
 
 @Composable

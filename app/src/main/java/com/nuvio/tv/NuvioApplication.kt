@@ -155,13 +155,12 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
                 val memoryInfo = ActivityManager.MemoryInfo()
                 activityManager.getMemoryInfo(memoryInfo)
                 val totalRamMb = memoryInfo.totalMem / (1024 * 1024)
-                // Low-RAM devices (≤2GB): use 0.15 — larger cache reduces GC pressure
-                // from rapid bitmap eviction during scrolling.
+                // Low-RAM 32-bit devices (≤2GB): cap to 0.18 (18%) of app heap to stay safely
+                // within process address space limits while preventing GC churn during rapid TV scrolling.
                 // Mid-range devices (≤3GB): use 0.20 for decent image caching.
                 // Normal devices (>3GB): use 0.25 for snappy image loading.
-                // - hardware bitmaps (one copy, in graphics memory) are a Beta speed-ups switch, off by default
                 val cachePercent = when {
-                    totalRamMb <= 2048 -> 0.15
+                    totalRamMb <= 2048 -> 0.18
                     totalRamMb <= 3072 -> 0.20
                     else -> 0.25
                 }
@@ -178,7 +177,7 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
             .crossfade(false)
             .precision(coil3.size.Precision.INEXACT)
             .allowHardware(imagePerformancePreferences.hardwareBitmapsEnabled)
-            .allowRgb565(imagePerformancePreferences.rgb565Enabled)
+            .allowRgb565(true)
             .bitmapFactoryMaxParallelism(4)
             .build()
     }

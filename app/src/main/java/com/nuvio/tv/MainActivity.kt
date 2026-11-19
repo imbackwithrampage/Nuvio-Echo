@@ -236,6 +236,9 @@ open class MainActivity : ComponentActivity() {
     @Inject
     lateinit var deepLinkHandler: DeepLinkHandler
 
+    @Inject
+    lateinit var ambientModeManager: com.nuvio.tv.core.ambient.AmbientModeManager
+
     private val pendingDeepLinkUrl = MutableStateFlow<String?>(null)
     private val pendingLaunchIntent = MutableStateFlow<Intent?>(null)
 
@@ -765,6 +768,9 @@ open class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(actualRoute) {
                         optimisticRoute = null
+                        val isPlayer = actualRoute?.startsWith("player") == true ||
+                            actualRoute?.startsWith("stream") == true
+                        ambientModeManager.setPlayerScreenActive(isPlayer)
                     }
 
                     // Auto-play next episode for EXTERNAL players: the tracker resolves the
@@ -1101,6 +1107,13 @@ open class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+
+                            val isAmbientActive by ambientModeManager.isAmbientActive.collectAsState()
+                            if (isAmbientActive) {
+                                com.nuvio.tv.ui.ambient.AmbientModeOverlay(
+                                    onDismiss = { ambientModeManager.dismiss() }
+                                )
+                            }
                         }
                     }
                 } 
@@ -1215,6 +1228,14 @@ open class MainActivity : ComponentActivity() {
     val longPressBackHeld = mutableStateOf(false)
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (ambientModeManager.isAmbientActive.value) {
+            if (event.action == KeyEvent.ACTION_UP) {
+                ambientModeManager.dismiss()
+            }
+            return true
+        }
+        ambientModeManager.onUserInteraction()
+
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
             if (longPressBackHeld.value) {
                 if (event.action == KeyEvent.ACTION_UP) longPressBackHeld.value = false

@@ -27,6 +27,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.nuvio.tv.core.ambient.AmbientModeManager
+import com.nuvio.tv.data.local.AmbientModeSettingsDataStore
+import com.nuvio.tv.domain.model.AmbientModeSettings
+import com.nuvio.tv.domain.model.AmbientSourceMode
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
@@ -46,6 +50,7 @@ data class LayoutSettingsUiState(
     val posterCardCornerRadiusDp: Int = 12,
     val cardDepthStyle: CardDepthStyle = CardDepthStyle(),
     val blurUnwatchedEpisodes: Boolean = false,
+    val blurContinueWatchingNextUp: Boolean = false,
     val homeImdbRatingsVisibility: HomeImdbRatingsVisibility = HomeImdbRatingsVisibility.SHOW_ALL,
     val useEpisodeThumbnailsInCw: Boolean = true,
     val detailPageTrailerButtonEnabled: Boolean = true,
@@ -63,6 +68,8 @@ data class LayoutSettingsUiState(
     val customPosterEnabledScreens: Set<com.nuvio.tv.core.poster.CustomPosterScreen> =
         com.nuvio.tv.core.poster.CustomPosterScreen.ALL,
     val alwaysShowLandscapeClearlogo: Boolean = false,
+    val multiProviderRatingsEnabled: Boolean = true,
+    val ambientSettings: AmbientModeSettings = AmbientModeSettings()
 )
 
 data class CatalogInfo(
@@ -89,6 +96,8 @@ sealed class LayoutSettingsEvent {
         val enabled: Boolean
     ) : LayoutSettingsEvent()
     data class SetBlurUnwatchedEpisodes(val enabled: Boolean) : LayoutSettingsEvent()
+    data class SetBlurContinueWatchingNextUp(val enabled: Boolean) : LayoutSettingsEvent()
+    data class SetMultiProviderRatingsEnabled(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetHomeImdbRatingsVisibility(val visibility: HomeImdbRatingsVisibility) : LayoutSettingsEvent()
     data class SetUseEpisodeThumbnailsInCw(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetDetailPageTrailerButtonEnabled(val enabled: Boolean) : LayoutSettingsEvent()
@@ -103,6 +112,12 @@ sealed class LayoutSettingsEvent {
     data class SetContinueWatchingEnabled(val enabled: Boolean) : LayoutSettingsEvent()
     data class SetContinueWatchingSortMode(val mode: ContinueWatchingSortMode) : LayoutSettingsEvent()
     data class SetAlwaysShowLandscapeClearlogo(val enabled: Boolean) : LayoutSettingsEvent()
+    data class SetAmbientEnabled(val enabled: Boolean) : LayoutSettingsEvent()
+    data class SetAmbientIdleTimeout(val minutes: Int) : LayoutSettingsEvent()
+    data class SetAmbientSlideshowInterval(val seconds: Int) : LayoutSettingsEvent()
+    data class SetAmbientSourceMode(val mode: AmbientSourceMode) : LayoutSettingsEvent()
+    data class SetAmbientShowClockAndMetadata(val show: Boolean) : LayoutSettingsEvent()
+    data object PreviewAmbientMode : LayoutSettingsEvent()
     data object ResetPosterCardStyle : LayoutSettingsEvent()
     data object ResetCardDepthStyle : LayoutSettingsEvent()
     data class SetCustomPosterUrlPattern(val pattern: String) : LayoutSettingsEvent()
@@ -121,7 +136,9 @@ class LayoutSettingsViewModel @Inject constructor(
     private val traktSettingsDataStore: TraktSettingsDataStore,
     private val trailerSettingsDataStore: TrailerSettingsDataStore,
     private val addonRepository: AddonRepository,
-    private val metaRepository: com.nuvio.tv.domain.repository.MetaRepository
+    private val metaRepository: com.nuvio.tv.domain.repository.MetaRepository,
+    private val ambientModeManager: AmbientModeManager,
+    private val ambientSettingsDataStore: AmbientModeSettingsDataStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LayoutSettingsUiState())
@@ -201,6 +218,11 @@ class LayoutSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             layoutPreferenceDataStore.blurUnwatchedEpisodes.distinctUntilChanged().collectLatest { enabled ->
                 updateUiStateIfChanged { it.copy(blurUnwatchedEpisodes = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            layoutPreferenceDataStore.blurContinueWatchingNextUp.distinctUntilChanged().collectLatest { enabled ->
+                updateUiStateIfChanged { it.copy(blurContinueWatchingNextUp = enabled) }
             }
         }
         viewModelScope.launch {
@@ -285,6 +307,20 @@ class LayoutSettingsViewModel @Inject constructor(
                     updateUiStateIfChanged { it.copy(alwaysShowLandscapeClearlogo = enabled) }
                 }
         }
+        viewModelScope.launch {
+            layoutPreferenceDataStore.multiProviderRatingsEnabled
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    updateUiStateIfChanged { it.copy(multiProviderRatingsEnabled = enabled) }
+                }
+        }
+        viewModelScope.launch {
+            ambientSettingsDataStore.settings
+                .distinctUntilChanged()
+                .collect { settings ->
+                    updateUiStateIfChanged { it.copy(ambientSettings = settings) }
+                }
+        }
         loadAvailableCatalogs()
     }
 
@@ -305,6 +341,8 @@ class LayoutSettingsViewModel @Inject constructor(
             is LayoutSettingsEvent.SetCardDepthSurfaceEnabled ->
                 setCardDepthSurfaceEnabled(event.surface, event.enabled)
             is LayoutSettingsEvent.SetBlurUnwatchedEpisodes -> setBlurUnwatchedEpisodes(event.enabled)
+            is LayoutSettingsEvent.SetBlurContinueWatchingNextUp -> setBlurContinueWatchingNextUp(event.enabled)
+            is LayoutSettingsEvent.SetMultiProviderRatingsEnabled -> setMultiProviderRatingsEnabled(event.enabled)
             is LayoutSettingsEvent.SetHomeImdbRatingsVisibility -> setHomeImdbRatingsVisibility(event.visibility)
             is LayoutSettingsEvent.SetUseEpisodeThumbnailsInCw -> setUseEpisodeThumbnailsInCw(event.enabled)
             is LayoutSettingsEvent.SetDetailPageTrailerButtonEnabled -> setDetailPageTrailerButtonEnabled(event.enabled)
@@ -319,6 +357,12 @@ class LayoutSettingsViewModel @Inject constructor(
             is LayoutSettingsEvent.SetContinueWatchingEnabled -> setContinueWatchingEnabled(event.enabled)
             is LayoutSettingsEvent.SetContinueWatchingSortMode -> setContinueWatchingSortMode(event.mode)
             is LayoutSettingsEvent.SetAlwaysShowLandscapeClearlogo -> setAlwaysShowLandscapeClearlogo(event.enabled)
+            is LayoutSettingsEvent.SetAmbientEnabled -> viewModelScope.launch { ambientSettingsDataStore.setEnabled(event.enabled) }
+            is LayoutSettingsEvent.SetAmbientIdleTimeout -> viewModelScope.launch { ambientSettingsDataStore.setIdleTimeoutMinutes(event.minutes) }
+            is LayoutSettingsEvent.SetAmbientSlideshowInterval -> viewModelScope.launch { ambientSettingsDataStore.setSlideshowIntervalSeconds(event.seconds) }
+            is LayoutSettingsEvent.SetAmbientSourceMode -> viewModelScope.launch { ambientSettingsDataStore.setSourceMode(event.mode) }
+            is LayoutSettingsEvent.SetAmbientShowClockAndMetadata -> viewModelScope.launch { ambientSettingsDataStore.setShowClockAndMetadata(event.show) }
+            LayoutSettingsEvent.PreviewAmbientMode -> ambientModeManager.triggerPreview()
             LayoutSettingsEvent.ResetPosterCardStyle -> resetPosterCardStyle()
             LayoutSettingsEvent.ResetCardDepthStyle -> resetCardDepthStyle()
             is LayoutSettingsEvent.SetCustomPosterUrlPattern -> setCustomPosterUrlPattern(event.pattern)
@@ -531,6 +575,20 @@ class LayoutSettingsViewModel @Inject constructor(
         if (_uiState.value.blurUnwatchedEpisodes == enabled) return
         viewModelScope.launch {
             layoutPreferenceDataStore.setBlurUnwatchedEpisodes(enabled)
+        }
+    }
+
+    private fun setBlurContinueWatchingNextUp(enabled: Boolean) {
+        if (_uiState.value.blurContinueWatchingNextUp == enabled) return
+        viewModelScope.launch {
+            layoutPreferenceDataStore.setBlurContinueWatchingNextUp(enabled)
+        }
+    }
+
+    private fun setMultiProviderRatingsEnabled(enabled: Boolean) {
+        if (_uiState.value.multiProviderRatingsEnabled == enabled) return
+        viewModelScope.launch {
+            layoutPreferenceDataStore.setMultiProviderRatingsEnabled(enabled)
         }
     }
 

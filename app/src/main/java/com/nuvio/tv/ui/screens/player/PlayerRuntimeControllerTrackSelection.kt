@@ -56,6 +56,8 @@ internal fun PlayerRuntimeController.selectAudioTrack(trackIndex: Int) {
         val changed = trackId != null && mpvView?.selectAudioTrackById(trackId) == true
         if (changed) {
             keepMpvPlayingIfNeeded(wasPlaying)
+            _uiState.update { it.copy(selectedAudioTrackIndex = trackIndex) }
+            updateAudioControlAvailability(_uiState.value.audioTracks, trackIndex)
         }
         return
     }

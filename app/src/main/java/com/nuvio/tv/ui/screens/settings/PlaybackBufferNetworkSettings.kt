@@ -41,6 +41,61 @@ internal fun PlaybackBufferNetworkSection(
     val context = LocalContext.current
     val isSupported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
     var showPerformanceModeWarning by remember { mutableStateOf(false) }
+    var showPresetDialog by remember { mutableStateOf(false) }
+
+    SettingsToggleRow(
+        title = stringResource(R.string.playback_release_hw_decoder_background_title),
+        subtitle = stringResource(R.string.playback_release_hw_decoder_background_sub),
+        checked = settings.releaseHardwareDecoderWhenBackgrounded,
+        onToggle = { updateMemory { setReleaseHardwareDecoderWhenBackgrounded(!settings.releaseHardwareDecoderWhenBackgrounded) } }
+    )
+
+    SettingsActionRow(
+        title = stringResource(R.string.playback_buffer_preset_title),
+        subtitle = null,
+        value = when (settings.bufferPreset) {
+            com.nuvio.tv.data.local.PlaybackBufferPreset.LOW_RAM_32BIT -> stringResource(R.string.playback_buffer_preset_low_ram)
+            com.nuvio.tv.data.local.PlaybackBufferPreset.BALANCED -> stringResource(R.string.playback_buffer_preset_balanced)
+            com.nuvio.tv.data.local.PlaybackBufferPreset.HIGH_BITRATE -> stringResource(R.string.playback_buffer_preset_high_bitrate)
+            com.nuvio.tv.data.local.PlaybackBufferPreset.CUSTOM -> stringResource(R.string.playback_buffer_preset_custom)
+        },
+        onClick = { showPresetDialog = true }
+    )
+
+    if (showPresetDialog) {
+        val options = listOf(
+            SettingsPickerOption(
+                com.nuvio.tv.data.local.PlaybackBufferPreset.LOW_RAM_32BIT,
+                stringResource(R.string.playback_buffer_preset_low_ram),
+                stringResource(R.string.playback_buffer_preset_low_ram_sub)
+            ),
+            SettingsPickerOption(
+                com.nuvio.tv.data.local.PlaybackBufferPreset.BALANCED,
+                stringResource(R.string.playback_buffer_preset_balanced),
+                stringResource(R.string.playback_buffer_preset_balanced_sub)
+            ),
+            SettingsPickerOption(
+                com.nuvio.tv.data.local.PlaybackBufferPreset.HIGH_BITRATE,
+                stringResource(R.string.playback_buffer_preset_high_bitrate),
+                stringResource(R.string.playback_buffer_preset_high_bitrate_sub)
+            ),
+            SettingsPickerOption(
+                com.nuvio.tv.data.local.PlaybackBufferPreset.CUSTOM,
+                stringResource(R.string.playback_buffer_preset_custom),
+                stringResource(R.string.playback_buffer_preset_custom_sub)
+            )
+        )
+        SettingsSingleChoiceDialog(
+            title = stringResource(R.string.playback_buffer_preset_title),
+            options = options,
+            selectedValue = settings.bufferPreset,
+            onOptionSelected = { preset ->
+                updateMemory { setBufferPreset(preset) }
+                showPresetDialog = false
+            },
+            onDismiss = { showPresetDialog = false }
+        )
+    }
 
     SettingsToggleRow(
         title = stringResource(R.string.playback_net_nuvio_performance_mode),

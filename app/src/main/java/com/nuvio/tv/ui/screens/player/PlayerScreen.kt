@@ -484,6 +484,9 @@ private fun PlayerScreenContent(
                 Lifecycle.Event.ON_PAUSE -> {
                     viewModel.pauseForLifecycle()
                 }
+                Lifecycle.Event.ON_STOP -> {
+                    viewModel.stopForLifecycle()
+                }
                 Lifecycle.Event.ON_RESUME -> {
                     // Re-create the MediaSession so media controls work in foreground.
                     // Don't auto-resume playback — let the user press play.
@@ -1424,6 +1427,12 @@ private fun PlayerScreenContent(
             }
         }
 
+        LaunchedEffect(uiState.showControls, uiState.currentStreamUrl) {
+            if (uiState.showControls) {
+                viewModel.controller.refreshStreamBadges()
+            }
+        }
+
         val showClockOverlay = uiState.showControls &&
             uiState.osdClockEnabled &&
             uiState.error == null &&
@@ -1815,6 +1824,9 @@ private fun PlayerScreenContent(
             persistAmplification = uiState.persistAudioAmplification,
             centerMixLevelDb = uiState.centerMixLevelDb,
             isCenterMixAvailable = uiState.isCenterMixAvailable,
+            nightModeEnabled = uiState.nightModeEnabled,
+            lfeMixLevel = uiState.lfeMixLevel,
+            isLfeAvailable = uiState.isLfeControlAvailable,
             onTrackSelected = { viewModel.onEvent(PlayerEvent.OnSelectAudioTrack(it)) },
             onAudioDelayChange = { viewModel.onEvent(PlayerEvent.OnSetAudioDelayMs(it)) },
             onAmplificationChange = { viewModel.onEvent(PlayerEvent.OnSetAudioAmplificationDb(it)) },
@@ -1823,6 +1835,12 @@ private fun PlayerScreenContent(
             },
             onCenterMixLevelChange = {
                 viewModel.onEvent(PlayerEvent.OnSetCenterMixLevelDb(it))
+            },
+            onNightModeToggle = {
+                viewModel.onEvent(PlayerEvent.OnSetNightMode(it))
+            },
+            onLfeMixLevelChange = {
+                viewModel.onEvent(PlayerEvent.OnSetLfeMixLevel(it))
             },
             onDismiss = { viewModel.onEvent(PlayerEvent.OnDismissTransientOverlay) },
             modifier = Modifier
@@ -2517,6 +2535,14 @@ private fun PlayerControlsOverlay(
                                 )
                             }
                         }
+                    }
+
+                    if (uiState.showStreamCodecBadges && uiState.streamBadges.items.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(NuvioTheme.spacing.xs))
+                        PlayerCodecBadgesRow(
+                            badges = uiState.streamBadges,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
                 }
             }

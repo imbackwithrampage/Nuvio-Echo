@@ -1,14 +1,17 @@
 package com.nuvio.tv.core.home
 
 import androidx.compose.runtime.Immutable
+import com.nuvio.tv.core.ratings.MultiProviderRatingsAggregator
 import com.nuvio.tv.core.tmdb.TmdbMetadataService
 import com.nuvio.tv.core.tmdb.TmdbService
 import com.nuvio.tv.data.local.TmdbSettingsDataStore
 import com.nuvio.tv.data.remote.api.TmdbApi
 import com.nuvio.tv.domain.model.ContentType
+import com.nuvio.tv.domain.model.MDBListRatings
 import com.nuvio.tv.domain.model.MetaPreview
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -30,7 +33,8 @@ data class NewLookDetails(
     val overview: String? = null,
     val tag: FeaturedTag? = null,
     /** For COMING_SOON: the season that's coming. */
-    val tagSeason: Int? = null
+    val tagSeason: Int? = null,
+    val multiRatings: MDBListRatings? = null
 )
 
 /**
@@ -43,7 +47,8 @@ class NewLookEnricher @Inject constructor(
     private val tmdbService: TmdbService,
     private val tmdbMetadataService: TmdbMetadataService,
     private val tmdbApi: TmdbApi,
-    private val tmdbSettingsDataStore: TmdbSettingsDataStore
+    private val tmdbSettingsDataStore: TmdbSettingsDataStore,
+    private val multiProviderRatingsAggregator: MultiProviderRatingsAggregator
 ) {
     private val cache = object : LinkedHashMap<String, NewLookDetails>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, NewLookDetails>?) = size > 200
@@ -55,15 +60,40 @@ class NewLookEnricher @Inject constructor(
     suspend fun details(item: MetaPreview, withTag: Boolean = false, topTenIds: Set<String> = emptySet()): NewLookDetails? =
         withContext(Dispatchers.IO) {
             cached(item.id)?.let { if (!withTag || it.tag != null) return@withContext it }
-            if (com.nuvio.tv.core.apikeys.ApiKeys.tmdb.isBlank()) return@withContext null
             val isTv = item.type == ContentType.SERIES || item.type == ContentType.TV ||
                 item.apiType.equals("series", true)
+
+            val ratingsDeferred = async {
+                runCatching {
+                    multiProviderRatingsAggregator.getRatings(
+                        itemId = item.id,
+                        itemType = item.apiType.ifBlank { if (isTv) "series" else "movie" },
+                        imdbId = item.imdbId,
+                        fallbackImdbRating = item.imdbRating?.toDouble()
+                    )
+                }.getOrNull()
+            }
+
+            if (com.nuvio.tv.core.apikeys.ApiKeys.tmdb.isBlank()) {
+                val multi = ratingsDeferred.await()
+                val details = NewLookDetails(multiRatings = multi)
+                synchronized(cache) { cache[item.id] = details }
+                return@withContext details
+            }
             try {
-                val tmdbId = tmdbService.ensureTmdbId(item.id, if (isTv) "tv" else "movie", item.imdbId) ?: return@withContext null
+                val tmdbId = tmdbService.ensureTmdbId(item.id, if (isTv) "tv" else "movie", item.imdbId) ?: run {
+                    val multi = ratingsDeferred.await()
+                    val details = NewLookDetails(multiRatings = multi)
+                    synchronized(cache) { cache[item.id] = details }
+                    return@withContext details
+                }
                 val language = tmdbSettingsDataStore.settings.value.language
                 val enrichment = tmdbMetadataService.fetchEnrichment(
                     tmdbId, if (isTv) ContentType.SERIES else ContentType.MOVIE, language
                 )
+                val multi = ratingsDeferred.await() ?: enrichment?.rating?.let {
+                    MDBListRatings(imdb = item.imdbRating?.toDouble(), tmdb = it)
+                }
                 var details = NewLookDetails(
                     logo = enrichment?.logo,
                     backdrop = enrichment?.backdrop,
@@ -71,7 +101,8 @@ class NewLookEnricher @Inject constructor(
                     runtimeMinutes = enrichment?.runtimeMinutes,
                     rating = enrichment?.rating,
                     year = enrichment?.releaseInfo,
-                    overview = enrichment?.description
+                    overview = enrichment?.description,
+                    multiRatings = multi
                 )
                 if (withTag) {
                     val (tag, season) = tagFor(item, isTv, tmdbId.toIntOrNull(), details.rating, topTenIds, language)

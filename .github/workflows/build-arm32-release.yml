@@ -1,0 +1,112 @@
+name: Build ARM32 Release APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-arm32-release:
+    name: Build & Package ARM32 Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle Wrapper Executable
+        run: chmod +x gradlew
+
+      - name: Setup Signing Keystore
+        id: setup-keystore
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding KEYSTORE_BASE64 from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release.keystore
+            echo "Keystore successfully decoded into app/release.keystore"
+          else
+            echo "No KEYSTORE_BASE64 secret provided. Auto-generating PKCS12 release keystore..."
+            keytool -genkeypair -v \
+              -keystore app/release.keystore \
+              -alias "${{ secrets.KEY_ALIAS || 'nuvio' }}" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "${{ secrets.KEYSTORE_PASSWORD || 'NuvioEcho2026!' }}" \
+              -keypass "${{ secrets.KEY_PASSWORD || 'NuvioEcho2026!' }}" \
+              -dname "CN=NuvioEcho, OU=AndroidTV, O=NuvioEcho, L=TV, ST=TV, C=US"
+            echo "Generated fallback keystore in app/release.keystore"
+          fi
+
+      - name: Build ARM32 Release APK
+        env:
+          KEYSTORE_FILE: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'NuvioEcho2026!' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'nuvio' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'NuvioEcho2026!' }}
+          CI_USE_DEBUG_SIGNING: "false"
+        run: |
+          ./gradlew assembleFullRelease --no-daemon --stacktrace
+
+      - name: Locate and Verify ARM32 Release APK
+        id: verify-apk
+        run: |
+          # Find the generated release APK
+          APK_FILE=$(find app/build/outputs/apk/full/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ] || [ ! -f "$APK_FILE" ]; then
+            echo "ERROR: Release APK not found in app/build/outputs/apk/full/release!"
+            exit 1
+          fi
+          echo "Found APK: $APK_FILE"
+          echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
+          echo "APK_NAME=$(basename $APK_FILE)" >> $GITHUB_ENV
+
+          # Verify native ABI libraries
+          echo "Verifying native library structure inside $APK_FILE..."
+          NATIVE_LIBS=$(unzip -l "$APK_FILE" | grep "lib/" || true)
+          echo "$NATIVE_LIBS"
+
+          if ! echo "$NATIVE_LIBS" | grep -q "lib/armeabi-v7a/"; then
+            echo "ERROR: APK does not contain lib/armeabi-v7a/ native libraries!"
+            exit 1
+          fi
+
+          if echo "$NATIVE_LIBS" | grep -q "lib/arm64-v8a/"; then
+            echo "ERROR: APK contains 64-bit arm64-v8a bloat!"
+            exit 1
+          fi
+
+          echo "SUCCESS: APK contains only 32-bit armeabi-v7a native libraries and is ready for low-RAM TV devices."
+
+      - name: Upload ARM32 Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nuvio-Echo-arm32-release
+          path: ${{ env.APK_PATH }}
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.APK_PATH }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

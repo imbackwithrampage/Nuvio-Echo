@@ -350,8 +350,17 @@ internal fun PlayerRuntimeController.observeSubtitleSettings() {
                             resolvedInternalPlayerEngine != InternalPlayerEngine.MVP_PLAYER,
                     persistAudioAmplification = settings.persistAudioAmplification,
                     audioAmplificationDb = resolvedAudioAmplificationDb,
-                    centerMixLevelDb = resolvedCenterMixLevelDb
+                    centerMixLevelDb = resolvedCenterMixLevelDb,
+                    nightModeEnabled = settings.nightModeEnabled,
+                    lfeMixLevel = settings.lfeMixLevel,
+                    showStreamCodecBadges = settings.showStreamCodecBadges,
+                    customBadgePackPath = settings.customBadgePackPath
                 )
+            }
+
+            if (settings.showStreamCodecBadges != currentState.showStreamCodecBadges ||
+                settings.customBadgePackPath != currentState.customBadgePackPath) {
+                refreshStreamBadges()
             }
 
             if (resolvedAudioAmplificationDb != currentState.audioAmplificationDb) {
@@ -359,6 +368,12 @@ internal fun PlayerRuntimeController.observeSubtitleSettings() {
             }
             if (resolvedCenterMixLevelDb != currentState.centerMixLevelDb) {
                 applyCenterMixLevel(resolvedCenterMixLevelDb)
+            }
+            if (settings.nightModeEnabled != currentState.nightModeEnabled) {
+                applyNightMode(settings.nightModeEnabled)
+            }
+            if (settings.lfeMixLevel != currentState.lfeMixLevel) {
+                applyLfeMixLevel(settings.lfeMixLevel)
             }
 
             if (settings.rememberAudioDelayPerDevice && !wasRememberingAudioDelayPerDevice) {
@@ -470,7 +485,8 @@ internal fun PlayerRuntimeController.observeSubtitleSettings() {
             }
 
             val wasEnabled = skipIntroEnabled
-            skipIntroEnabled = settings.skipIntroEnabled
+            skipIntroEnabled = settings.skipIntroEnabled && settings.skipIntroMode != com.nuvio.tv.data.local.SkipIntroMode.OFF
+            skipIntroMode = settings.skipIntroMode
             parentalGuideEnabled = settings.parentalGuideEnabled
             autoSkipSegmentTypes = settings.autoSkipSegmentTypes
             updateSkipTimeFileChecks(settings.skipTimeFileChecks)
@@ -618,7 +634,7 @@ internal fun PlayerRuntimeController.fetchSkipIntervals(id: String?, season: Int
         skipIntroFetchedKey = key
         scope.launch {
             val durationMs = awaitSkipTimesDurationMs()
-            val times = withTimeoutOrNull(15_000L) {
+            val times = withTimeoutOrNull(3_000L) {
                 skipIntroRepository.getMovieSkipIntervals(id, effectiveId, durationMs)
             } ?: SkipTimes.NONE
             // Another episode or source may have started meanwhile.
@@ -643,7 +659,7 @@ internal fun PlayerRuntimeController.fetchSkipIntervals(id: String?, season: Int
         val imdbId = id?.takeIf { it.startsWith("tt") } ?: metaImdbId
         scope.launch {
             val durationMs = awaitSkipTimesDurationMs()
-            val times = withTimeoutOrNull(15_000L) {
+            val times = withTimeoutOrNull(3_000L) {
                 skipIntroRepository.getSkipIntervalsForMal(malId, malEpisode, imdbId = imdbId, imdbSeason = season, imdbEpisode = episode, durationMs = durationMs)
             } ?: SkipTimes.NONE
             // Another episode or source may have started meanwhile.
@@ -663,7 +679,7 @@ internal fun PlayerRuntimeController.fetchSkipIntervals(id: String?, season: Int
         val imdbId = id?.takeIf { it.startsWith("tt") } ?: metaImdbId
         scope.launch {
             val durationMs = awaitSkipTimesDurationMs()
-            val times = withTimeoutOrNull(15_000L) {
+            val times = withTimeoutOrNull(3_000L) {
                 skipIntroRepository.getSkipIntervalsForKitsu(kitsuId, kitsuEpisode, imdbId = imdbId, imdbSeason = season, imdbEpisode = episode, durationMs = durationMs)
             } ?: SkipTimes.NONE
             // Another episode or source may have started meanwhile.
@@ -681,7 +697,7 @@ internal fun PlayerRuntimeController.fetchSkipIntervals(id: String?, season: Int
 
     scope.launch {
         val durationMs = awaitSkipTimesDurationMs()
-        val times = withTimeoutOrNull(15_000L) {
+        val times = withTimeoutOrNull(3_000L) {
             skipIntroRepository.getSkipIntervals(imdbId, season, episode, durationMs)
         } ?: SkipTimes.NONE
         // Another episode or source may have started meanwhile.

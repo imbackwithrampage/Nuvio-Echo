@@ -814,7 +814,13 @@ private fun NdHero(
                 Text(meta.name, color = Color.White, fontSize = 32.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold, maxLines = 2)
                 Spacer(Modifier.height(10.dp))
             }
-            NdMetaLines(meta = meta, isSeries = isSeries, tmdbRating = state.tmdbRating)
+            NdMetaLines(
+                meta = meta,
+                isSeries = isSeries,
+                tmdbRating = state.tmdbRating,
+                mdbListRatings = state.mdbListRatings,
+                showMultiRatings = state.multiProviderRatingsEnabled
+            )
             Spacer(Modifier.height(10.dp))
             NdSynopsis(
                 meta = meta,
@@ -886,7 +892,13 @@ private fun NdHero(
 }
 
 @Composable
-private fun NdMetaLines(meta: Meta, isSeries: Boolean, tmdbRating: Float?) {
+private fun NdMetaLines(
+    meta: Meta,
+    isSeries: Boolean,
+    tmdbRating: Float?,
+    mdbListRatings: com.nuvio.tv.domain.model.MDBListRatings? = null,
+    showMultiRatings: Boolean = true
+) {
     val context = LocalContext.current
     val line1 = remember(meta, isSeries) {
         buildList {
@@ -908,10 +920,11 @@ private fun NdMetaLines(meta: Meta, isSeries: Boolean, tmdbRating: Float?) {
         }
     }
     val cert = meta.ageRating?.trim()?.takeIf { it.isNotBlank() }
+    val hasMulti = showMultiRatings && mdbListRatings != null && !mdbListRatings.isEmpty()
     // A score of 0 means nobody has rated it yet (an unreleased title): leave it out.
     val imdb = meta.imdbRating?.takeIf { it > 0f }
     @Suppress("NAME_SHADOWING") val tmdbRating = tmdbRating?.takeIf { it > 0f }
-    if (cert != null || imdb != null || tmdbRating != null) {
+    if (cert != null || hasMulti || imdb != null || tmdbRating != null) {
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (cert != null) {
@@ -929,25 +942,32 @@ private fun NdMetaLines(meta: Meta, isSeries: Boolean, tmdbRating: Float?) {
                         .padding(horizontal = 5.dp)
                 ) { Text(cert, color = text, fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium) }
             }
-            if (imdb != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    ImdbRatingSourceLabel(
-                        logoModifier = Modifier.size(26.dp),
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
-                        textColor = text
-                    )
-                    Text(String.format(java.util.Locale.US, "%.1f", imdb), color = text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            if (hasMulti && mdbListRatings != null) {
+                com.nuvio.tv.ui.components.GlassMultiRatingsPills(
+                    ratings = mdbListRatings,
+                    maxPills = 6
+                )
+            } else {
+                if (imdb != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ImdbRatingSourceLabel(
+                            logoModifier = Modifier.size(26.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            textColor = text
+                        )
+                        Text(String.format(java.util.Locale.US, "%.1f", imdb), color = text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
-            }
-            if (tmdbRating != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AsyncImage(
-                        model = remember(context) { ImageRequest.Builder(context).data(R.raw.mdblist_tmdb).build() },
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Text((tmdbRating * 10).toInt().toString(), color = text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                if (tmdbRating != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        AsyncImage(
+                            model = remember(context) { ImageRequest.Builder(context).data(R.raw.mdblist_tmdb).build() },
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Text((tmdbRating * 10).toInt().toString(), color = text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }

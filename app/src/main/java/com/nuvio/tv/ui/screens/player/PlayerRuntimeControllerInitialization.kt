@@ -372,6 +372,10 @@ internal fun PlayerRuntimeController.initializePlayer(
                 }
             }
 
+            if (playerSettings.convertDvProfile7To81 && effectiveDv7Mode != Dv7HandlingMode.DV81_LIBDOVI) {
+                effectiveDv7Mode = Dv7HandlingMode.DV81_LIBDOVI
+            }
+
             // Experimental: explicit libdovi conversion-mode override. Only applies
             // when DV7 handling is Convert to DV8.1 (the modes are libdovi conversion
             // modes, so they're only meaningful while conversion is active). Picks
@@ -414,16 +418,13 @@ internal fun PlayerRuntimeController.initializePlayer(
             val dv7ConversionDisarmedForUrl = dv7ToHevcForcedStreamUrls.contains(url)
             isExperimentalDv7ToDv81ActiveForCurrentPlayback =
                 dv7ToDv81SettingActive && dv7ToDv81Probe.supported && !dv7ConversionDisarmedForUrl
-            // AUTO fallback: if AUTO chose DV81 but the probe failed for this stream,
-            // downgrade to HDR10_BASE_LAYER so the user still gets a picture.
-            if (playerSettings.dv7HandlingMode == Dv7HandlingMode.AUTO &&
-                effectiveDv7Mode == Dv7HandlingMode.DV81_LIBDOVI &&
-                !dv7ToDv81Probe.supported
-            ) {
+            // Safe fallback: if DV81 conversion was chosen (AUTO or toggle) but probe failed,
+            // downgrade to HDR10_BASE_LAYER so the user gets clean HDR10 base layer with zero black screen/crashes.
+            if (effectiveDv7Mode == Dv7HandlingMode.DV81_LIBDOVI && !dv7ToDv81Probe.supported) {
                 effectiveDv7Mode = Dv7HandlingMode.HDR10_BASE_LAYER
                 Log.i(
                     PlayerRuntimeController.TAG,
-                    "DV7_AUTO_FALLBACK: dv81-probe-failed reason=${dv7ToDv81Probe.reason} " +
+                    "DV7_FALLBACK: dv81-probe-failed reason=${dv7ToDv81Probe.reason} " +
                             "fallback=HDR10_BASE_LAYER host=${url.safeHost()}"
                 )
             }

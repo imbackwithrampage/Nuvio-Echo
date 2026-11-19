@@ -28,11 +28,18 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
     private var hardwareDecodeMode: MpvHardwareDecodeMode = MpvHardwareDecodeMode.AUTO_SAFE
     private var hi10pGnextSoftwareFallbackActive = false
     private var appliedHi10pGnextSoftwareFallback: Boolean? = null
+    private var dolbyVisionConversionActive = false
+    private var configuredDemuxerMaxBytes: Long = 64L * 1024 * 1024
+    private var configuredDemuxerMaxBackBytes: Long = 32L * 1024 * 1024
     private var currentAspectMode: AspectMode = AspectMode.ORIGINAL
     private var pendingAspectRetryCount = 0
     private val aspectReapplyRunnable = Runnable {
         applyAspectModeInternal(currentAspectMode, allowRetry = true)
     }
+    private var nightModeActive = false
+    private var currentLfeMixLevel = 0.0f
+    private var currentCenterMixDb = 0
+    private var currentAudioChannelCount = 2
 
     fun ensureInitialized() {
         if (initialized) return
@@ -265,6 +272,33 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
         }
     }
 
+    fun applyAudioFilters(
+        nightMode: Boolean = nightModeActive,
+        lfeMixLevel: Float = currentLfeMixLevel,
+        centerMixDb: Int = currentCenterMixDb,
+        channelCount: Int = currentAudioChannelCount
+    ) {
+        nightModeActive = nightMode
+        currentLfeMixLevel = lfeMixLevel
+        currentCenterMixDb = centerMixDb
+        currentAudioChannelCount = channelCount
+        if (!initialized) return
+
+        val filterChain = PlayerAudioFilterPolicy.buildAudioFilterChain(
+            nightMode = nightMode,
+            lfeMixLevel = lfeMixLevel,
+            centerMixDb = centerMixDb,
+            channelCount = channelCount
+        )
+
+        runCatching {
+            mpv.setPropertyString("af", filterChain)
+            Log.d(TAG, "Applied mpv audio filter chain: '$filterChain'")
+        }.onFailure {
+            Log.w(TAG, "Failed to apply mpv audio filters: ${it.message}")
+        }
+    }
+
     fun applyAudioLanguagePreferences(languages: List<String>) {
         if (!initialized) return
         val normalized = languages
@@ -304,6 +338,37 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
             appliedHi10pGnextSoftwareFallback = active
         }.onFailure {
             Log.w(TAG, "Failed to apply mpv Hi10P G-NEXT SW fallback (active=$active): ${it.message}")
+        }
+    }
+
+    fun applyDolbyVisionProfileConversion(enabled: Boolean) {
+        dolbyVisionConversionActive = enabled
+        if (!initialized) return
+        runCatching {
+            if (enabled) {
+                setVo(MPV_VIDEO_OUTPUT_GPU_NEXT)
+                mpv.setPropertyString("vo", MPV_VIDEO_OUTPUT_GPU_NEXT)
+                mpv.setPropertyString("target-trc", "auto")
+                mpv.setPropertyString("tone-mapping", "auto")
+                mpv.setPropertyString("hdr-compute-peak", "yes")
+            } else if (!hi10pGnextSoftwareFallbackActive) {
+                setVo(MPV_VIDEO_OUTPUT_GPU)
+                mpv.setPropertyString("vo", MPV_VIDEO_OUTPUT_GPU)
+            }
+        }.onFailure {
+            Log.w(TAG, "Failed to apply MPV Dolby Vision profile conversion: ${it.message}")
+        }
+    }
+
+    fun applyBufferLimits(demuxerMaxBytes: Long, demuxerMaxBackBytes: Long) {
+        configuredDemuxerMaxBytes = demuxerMaxBytes.coerceIn(16L * 1024 * 1024, 256L * 1024 * 1024)
+        configuredDemuxerMaxBackBytes = demuxerMaxBackBytes.coerceIn(0L, configuredDemuxerMaxBytes)
+        if (!initialized) return
+        runCatching {
+            mpv.setPropertyLong("demuxer-max-bytes", configuredDemuxerMaxBytes)
+            mpv.setPropertyLong("demuxer-max-back-bytes", configuredDemuxerMaxBackBytes)
+        }.onFailure {
+            Log.w(TAG, "Failed to apply MPV buffer limits: ${it.message}")
         }
     }
 
@@ -654,7 +719,13 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
     override fun initOptions() {
         mpv.setOptionString("profile", "fast")
         mpv.setOptionString("msg-level", "ffmpeg=warn,vd=warn,ad=warn,vo=warn,ao=warn,demux=warn,lavf=warn,cplayer=warn,autoconvert=warn,hwupload=warn")
-        setVo(if (hi10pGnextSoftwareFallbackActive) MPV_VIDEO_OUTPUT_GPU_NEXT else MPV_VIDEO_OUTPUT_GPU)
+        val useGpuNext = hi10pGnextSoftwareFallbackActive || dolbyVisionConversionActive
+        setVo(if (useGpuNext) MPV_VIDEO_OUTPUT_GPU_NEXT else MPV_VIDEO_OUTPUT_GPU)
+        if (dolbyVisionConversionActive) {
+            mpv.setOptionString("target-trc", "auto")
+            mpv.setOptionString("tone-mapping", "auto")
+            mpv.setOptionString("hdr-compute-peak", "yes")
+        }
         mpv.setOptionString("gpu-context", "android")
         mpv.setOptionString("opengl-es", "yes")
         mpv.setOptionString("user-agent", PlayerMediaSourceFactory.DEFAULT_USER_AGENT)
@@ -675,8 +746,8 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
         mpv.setOptionString("tls-verify", "yes")
         mpv.setOptionString("tls-ca-file", "${context.filesDir.path}/cacert.pem")
         mpv.setOptionString("input-default-bindings", "yes")
-        mpv.setOptionString("demuxer-max-bytes", "${64 * 1024 * 1024}")
-        mpv.setOptionString("demuxer-max-back-bytes", "${64 * 1024 * 1024}")
+        mpv.setOptionString("demuxer-max-bytes", configuredDemuxerMaxBytes.toString())
+        mpv.setOptionString("demuxer-max-back-bytes", configuredDemuxerMaxBackBytes.toString())
         mpv.setOptionString("keep-open", "yes")
         mpv.setOptionString("softvol", "yes")
         mpv.setOptionString("volume-max", MPV_MAX_VOLUME_PERCENT.toInt().toString())

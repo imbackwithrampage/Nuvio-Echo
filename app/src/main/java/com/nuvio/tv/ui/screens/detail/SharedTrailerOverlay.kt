@@ -69,6 +69,7 @@ fun SharedTrailerOverlay(
     val seekOverlayState = remember { TrailerSeekOverlayState() }
     var seekToken by remember { mutableIntStateOf(0) }
     var seekDeltaMs by remember { mutableLongStateOf(0L) }
+    var hasRetriedExpired by remember(trailerUrl) { mutableStateOf(false) }
 
     val canControlPlayback = !trailerUrl.isNullOrBlank() && !isLoading && errorMessage == null
 
@@ -186,6 +187,12 @@ fun SharedTrailerOverlay(
                         seekOverlayState.durationMs = duration
                     },
                     onEnded = onDismiss,
+                    onExpiredSignatureError = {
+                        if (!hasRetriedExpired) {
+                            hasRetriedExpired = true
+                            onRetry()
+                        }
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             }
