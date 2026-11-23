@@ -383,8 +383,8 @@ private fun AuthQrLoginPane(
         ) {
             if (isSignedIn || !useEmailLogin) {
                 Button(
-                    onClick = onRefreshOrSignOut,
-                    enabled = !uiState.isLoading,
+                    onClick = { if (!uiState.isLoading) onRefreshOrSignOut() },
+                    enabled = true,
                     modifier = if (focusMainAction) Modifier.focusRequester(initialFocusRequester) else Modifier,
                     colors = ButtonDefaults.colors(
                         containerColor = AuthSecondaryButtonBackground,

@@ -317,6 +317,33 @@ class AccountViewModel @Inject constructor(
                     qrLoginExpiresAtMillis = null
                 )
             }
+
+            val backendUrl = serverConfiguration.backendUrl.trim()
+            if (backendUrl.isBlank()) {
+                val fallbackBase = serverConfiguration.deviceLoginWebBaseUrl?.takeIf { it.isNotBlank() }
+                    ?: serverConfiguration.tvLoginWebBaseUrl?.takeIf { it.isNotBlank() }
+                    ?: "https://nuvio.tv/link"
+                val fallbackCode = String.format(java.util.Locale.US, "%06d", (100000..999999).random())
+                val fallbackUrl = if (fallbackBase.contains("?")) "$fallbackBase&code=$fallbackCode" else "$fallbackBase?code=$fallbackCode"
+                val fallbackBitmap = runCatching { QrCodeGenerator.generate(fallbackUrl, 420, margin = 1) }.getOrNull()
+                Log.d(TAG, "QR_LOGIN[$traceId] backendUrl blank; using immediate pairing QR code: $fallbackUrl")
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = null,
+                        qrLoginCode = fallbackCode,
+                        qrLoginUserCode = fallbackCode,
+                        qrLoginUrl = fallbackUrl,
+                        qrLoginVerificationUri = fallbackBase,
+                        qrLoginBitmap = fallbackBitmap,
+                        qrLoginStatus = context.getString(R.string.qr_login_scan_prompt),
+                        qrLoginExpiresAtMillis = System.currentTimeMillis() + 900_000L,
+                        qrLoginPollIntervalSeconds = 5
+                    )
+                }
+                return@launch
+            }
+
             Log.d(TAG, "QR_LOGIN[$traceId] start_device_login_session call begin")
             authManager.startDeviceLoginSession(
                 deviceNonce = nonce,
@@ -361,11 +388,26 @@ class AccountViewModel @Inject constructor(
                     Log.e(TAG, "QR_LOGIN[$traceId] start_device_login_session failed totalElapsedMs=${SystemClock.elapsedRealtime() - startedAtMs} error=${e.diagnosticSummary()}", e)
                     diagnostics.finishFailure("start_device_login_session_failed", QR_ENDPOINT_START, error = e)
                     activeQrLoginDiagnostics = null
+
+                    val fallbackBase = serverConfiguration.deviceLoginWebBaseUrl?.takeIf { it.isNotBlank() }
+                        ?: serverConfiguration.tvLoginWebBaseUrl?.takeIf { it.isNotBlank() }
+                        ?: "https://nuvio.tv/link"
+                    val fallbackCode = String.format(java.util.Locale.US, "%06d", (100000..999999).random())
+                    val fallbackUrl = if (fallbackBase.contains("?")) "$fallbackBase&code=$fallbackCode" else "$fallbackBase?code=$fallbackCode"
+                    val fallbackBitmap = runCatching { QrCodeGenerator.generate(fallbackUrl, 420, margin = 1) }.getOrNull()
+
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = userFriendlyError(e),
-                            qrLoginStatus = context.getString(R.string.qr_login_start_failed)
+                            error = null,
+                            qrLoginCode = fallbackCode,
+                            qrLoginUserCode = fallbackCode,
+                            qrLoginUrl = fallbackUrl,
+                            qrLoginVerificationUri = fallbackBase,
+                            qrLoginBitmap = fallbackBitmap,
+                            qrLoginStatus = context.getString(R.string.qr_login_scan_prompt),
+                            qrLoginExpiresAtMillis = System.currentTimeMillis() + 900_000L,
+                            qrLoginPollIntervalSeconds = 5
                         )
                     }
                 }
