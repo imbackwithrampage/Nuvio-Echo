@@ -167,8 +167,8 @@ android {
         buildConfigField("String", "SPONSOR_NAMES", buildConfigString(sponsorNames))
         buildConfigField("String", "SENTRY_DSN", buildConfigString(sentryDsn))
 
-        // In-app updater (GitHub Releases) - defaults to Nuvio-Echo
-        val defaultOwner = env("GITHUB_OWNER") ?: localProperties.getProperty("GITHUB_OWNER", "Laking22")
+        // In-app updater (GitHub Releases) - defaults to Nuvio-Echo (Sunil Sachindar S A / imbackwithrampage)
+        val defaultOwner = env("GITHUB_OWNER") ?: localProperties.getProperty("GITHUB_OWNER", "imbackwithrampage")
         val defaultRepo = env("GITHUB_REPO") ?: localProperties.getProperty("GITHUB_REPO", "Nuvio-Echo")
         buildConfigField("String", "GITHUB_OWNER", buildConfigString(defaultOwner))
         buildConfigField("String", "GITHUB_REPO", buildConfigString(defaultRepo))
@@ -271,7 +271,7 @@ android {
             buildConfigField("boolean", "IS_DEBUG_BUILD", "false")
             buildConfigField("String", "SENTRY_ENVIRONMENT", buildConfigString("production"))
 
-            val releaseOwner = env("GITHUB_OWNER") ?: localProperties.getProperty("GITHUB_OWNER", "Laking22")
+            val releaseOwner = env("GITHUB_OWNER") ?: localProperties.getProperty("GITHUB_OWNER", "imbackwithrampage")
             val releaseRepo = env("GITHUB_REPO") ?: localProperties.getProperty("GITHUB_REPO", "Nuvio-Echo")
             buildConfigField("String", "GITHUB_OWNER", buildConfigString(releaseOwner))
             buildConfigField("String", "GITHUB_REPO", buildConfigString(releaseRepo))
@@ -322,7 +322,7 @@ android {
             isDebuggable = false
             buildConfigField("String", "SENTRY_ENVIRONMENT", buildConfigString("beta"))
             buildConfigField("boolean", "IN_APP_UPDATES_ALLOWED", "true")
-            buildConfigField("String", "GITHUB_OWNER", buildConfigString("Laking22"))
+            buildConfigField("String", "GITHUB_OWNER", buildConfigString("imbackwithrampage"))
             buildConfigField("String", "GITHUB_REPO", buildConfigString("Nuvio-Echo"))
             matchingFallbacks += "release"
         }

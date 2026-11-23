@@ -15,7 +15,7 @@
 
   <p></p>
 
-  <a href="https://github.com/Laking22/Nuvio-Echo/releases"><b>Download the latest beta</b></a>
+  <a href="https://github.com/imbackwithrampage/Nuvio-Echo/releases"><b>Download the latest release</b></a>
 
 </div>
 
@@ -23,9 +23,9 @@
 
 | Your device | File |
 | --- | --- |
-| Most Android TV and Google TV boxes (32-bit) | [app-full-armeabi-v7a-beta.apk](https://github.com/Laking22/Nuvio-Echo/releases/download/v1.1.0-beta.6/app-full-armeabi-v7a-beta.apk) |
-| 64-bit devices (NVIDIA Shield, newer Google TV devices) | [app-full-arm64-v8a-beta.apk](https://github.com/Laking22/Nuvio-Echo/releases/download/v1.1.0-beta.6/app-full-arm64-v8a-beta.apk) |
-| Not sure | [app-full-universal-beta.apk](https://github.com/Laking22/Nuvio-Echo/releases/download/v1.1.0-beta.6/app-full-universal-beta.apk) (works on any device, bigger download) |
+| Most Android TV and Google TV boxes (32-bit) | [app-full-armeabi-v7a-release.apk](https://github.com/imbackwithrampage/Nuvio-Echo/releases) |
+| 64-bit devices (NVIDIA Shield, newer Google TV devices) | [app-full-arm64-v8a-release.apk](https://github.com/imbackwithrampage/Nuvio-Echo/releases) |
+| Universal APK | [app-full-universal-release.apk](https://github.com/imbackwithrampage/Nuvio-Echo/releases) |
 
 To install, open the APK on your TV with a file manager or the Downloader app and allow installs from that app when asked. A newer APK installs over the old one and keeps your settings, and once Echo is installed it can update itself (**Settings → About → Check for updates**).
 
@@ -103,7 +103,7 @@ These were removed in the redesign and no longer work:
 ## Build from source
 
 ```bash
-git clone https://github.com/Laking22/Nuvio-Echo.git
+git clone https://github.com/imbackwithrampage/Nuvio-Echo.git
 cd Nuvio-Echo
 ./gradlew :app:assembleFullBeta
 ```
