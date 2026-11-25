@@ -1393,6 +1393,7 @@
     <string name="qr_login_device_auth_failed">Failed to authenticate device</string>
     <string name="qr_login_scan_prompt">Scan QR and sign in on your phone</string>
     <string name="qr_login_start_failed">Failed to start QR login</string>
+    <string name="qr_login_backend_not_configured">Account sync (Supabase) is not configured in this build. Choose Continue without account to use all addons, local library, Trakt/Simkl, and playback—or open Server options.</string>
     <string name="qr_login_signing_in">Signing you in…</string>
     <string name="qr_login_success">Signed in successfully</string>
     <string name="qr_login_exchange_failed">Could not complete QR sign in</string>

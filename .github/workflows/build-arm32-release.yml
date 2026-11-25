@@ -64,6 +64,9 @@ jobs:
           CI_USE_DEBUG_SIGNING: "false"
           GITHUB_OWNER: ${{ github.repository_owner }}
           GITHUB_REPO: ${{ github.event.repository.name }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_FALLBACK_URL: ${{ secrets.SUPABASE_FALLBACK_URL }}
         run: |
           ./gradlew assembleFullRelease --no-daemon --stacktrace
 

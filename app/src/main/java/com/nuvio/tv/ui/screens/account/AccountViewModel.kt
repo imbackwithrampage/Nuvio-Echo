@@ -319,26 +319,22 @@ class AccountViewModel @Inject constructor(
             }
 
             val backendUrl = serverConfiguration.backendUrl.trim()
-            if (backendUrl.isBlank()) {
-                val fallbackBase = serverConfiguration.deviceLoginWebBaseUrl?.takeIf { it.isNotBlank() }
-                    ?: serverConfiguration.tvLoginWebBaseUrl?.takeIf { it.isNotBlank() }
-                    ?: "https://nuvio.tv/link"
-                val fallbackCode = String.format(java.util.Locale.US, "%06d", (100000..999999).random())
-                val fallbackUrl = if (fallbackBase.contains("?")) "$fallbackBase&code=$fallbackCode" else "$fallbackBase?code=$fallbackCode"
-                val fallbackBitmap = runCatching { QrCodeGenerator.generate(fallbackUrl, 420, margin = 1) }.getOrNull()
-                Log.d(TAG, "QR_LOGIN[$traceId] backendUrl blank; using immediate pairing QR code: $fallbackUrl")
+            val publishableKey = serverConfiguration.publishableKey.trim()
+            if (backendUrl.isBlank() || publishableKey.isBlank()) {
+                Log.w(TAG, "QR_LOGIN[$traceId] Supabase backendUrl/publishableKey not configured")
+                diagnostics.finishFailure("backend_not_configured", QR_ENDPOINT_START)
+                activeQrLoginDiagnostics = null
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = null,
-                        qrLoginCode = fallbackCode,
-                        qrLoginUserCode = fallbackCode,
-                        qrLoginUrl = fallbackUrl,
-                        qrLoginVerificationUri = fallbackBase,
-                        qrLoginBitmap = fallbackBitmap,
-                        qrLoginStatus = context.getString(R.string.qr_login_scan_prompt),
-                        qrLoginExpiresAtMillis = System.currentTimeMillis() + 900_000L,
-                        qrLoginPollIntervalSeconds = 5
+                        error = context.getString(R.string.qr_login_backend_not_configured),
+                        qrLoginCode = null,
+                        qrLoginUserCode = null,
+                        qrLoginUrl = null,
+                        qrLoginVerificationUri = null,
+                        qrLoginBitmap = null,
+                        qrLoginStatus = null,
+                        qrLoginExpiresAtMillis = null
                     )
                 }
                 return@launch
@@ -389,25 +385,11 @@ class AccountViewModel @Inject constructor(
                     diagnostics.finishFailure("start_device_login_session_failed", QR_ENDPOINT_START, error = e)
                     activeQrLoginDiagnostics = null
 
-                    val fallbackBase = serverConfiguration.deviceLoginWebBaseUrl?.takeIf { it.isNotBlank() }
-                        ?: serverConfiguration.tvLoginWebBaseUrl?.takeIf { it.isNotBlank() }
-                        ?: "https://nuvio.tv/link"
-                    val fallbackCode = String.format(java.util.Locale.US, "%06d", (100000..999999).random())
-                    val fallbackUrl = if (fallbackBase.contains("?")) "$fallbackBase&code=$fallbackCode" else "$fallbackBase?code=$fallbackCode"
-                    val fallbackBitmap = runCatching { QrCodeGenerator.generate(fallbackUrl, 420, margin = 1) }.getOrNull()
-
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = null,
-                            qrLoginCode = fallbackCode,
-                            qrLoginUserCode = fallbackCode,
-                            qrLoginUrl = fallbackUrl,
-                            qrLoginVerificationUri = fallbackBase,
-                            qrLoginBitmap = fallbackBitmap,
-                            qrLoginStatus = context.getString(R.string.qr_login_scan_prompt),
-                            qrLoginExpiresAtMillis = System.currentTimeMillis() + 900_000L,
-                            qrLoginPollIntervalSeconds = 5
+                            error = userFriendlyError(e),
+                            qrLoginStatus = context.getString(R.string.qr_login_start_failed)
                         )
                     }
                 }
